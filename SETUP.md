@@ -21,6 +21,8 @@ gcloud services enable \
   artifactregistry.googleapis.com
 ```
 
+Argon (`DESIGN_MODEL`) needs a billing-enabled project — it has no free tier.
+
 ## 2. Create the API key secret
 
 Get the key from AI Studio, then:
@@ -63,7 +65,7 @@ gcloud run deploy chapter-quest \
   --region asia-southeast1 \
   --allow-unauthenticated \
   --set-secrets GEMINI_API_KEY=gemini-api-key:latest \
-  --set-env-vars NODE_ENV=production
+  --set-env-vars "NODE_ENV=production,DESIGN_MODEL=gemini-4-argon,TEXT_MODEL=gemini-3.8-flash,FAST_MODEL=gemini-3.5-flash-lite,IMAGE_MODEL=gemini-nano-banana-2.1,EMBED_MODEL=gemini-embedding-2"
 ```
 
 Check it: `curl https://<service-url>/api/health`

@@ -13,6 +13,7 @@ const kindColor: Record<AgentEvent['kind'], string> = {
   done: colors.success,
   rejected: colors.fail,
   repair: colors.gold,
+  fallback: colors.gold,
 };
 
 /** The build story, streaming. Toggle with T. */
@@ -31,7 +32,10 @@ export function AgentTracePanel({ events, open, onClose }: Props) {
           <li key={`${event.ts}-${i}`} style={styles.row}>
             <span style={{ ...styles.kind, color: kindColor[event.kind] }}>{event.kind}</span>
             <div>
-              <div style={styles.agent}>{event.agent}</div>
+              <div style={styles.agentLine}>
+                <span style={styles.agent}>{event.agent}</span>
+                {event.model ? <span style={styles.model}>{event.model}</span> : null}
+              </div>
               <div style={styles.message}>{event.message}</div>
             </div>
           </li>
@@ -44,6 +48,8 @@ export function AgentTracePanel({ events, open, onClose }: Props) {
 
 const styles: Record<string, React.CSSProperties> = {
   panel: {
+    position: 'relative',
+    zIndex: 1,
     width: 'min(520px, 90vw)',
     maxHeight: '70vh',
     overflowY: 'auto',
@@ -71,6 +77,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   row: { display: 'grid', gridTemplateColumns: '84px 1fr', gap: space.sm, alignItems: 'start' },
   kind: { fontFamily: fonts.header, fontSize: 12, textTransform: 'uppercase', paddingTop: 2 },
+  agentLine: { display: 'flex', alignItems: 'baseline', gap: space.xs, flexWrap: 'wrap' },
   agent: { fontSize: 13, color: colors.gold },
+  model: {
+    fontFamily: fonts.header,
+    fontSize: 10,
+    padding: `1px ${space.xs}px`,
+    borderRadius: radii.chip,
+    border: `1px solid ${colors.parchment}33`,
+    color: `${colors.parchment}99`,
+  },
   message: { fontSize: 14, color: `${colors.parchment}dd`, lineHeight: 1.45 },
 };

@@ -1,3 +1,4 @@
 dist
 node_modules
 web/public/mock-art
+server/scripts/fixtures

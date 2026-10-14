@@ -11,6 +11,7 @@ import { API_MODE, api } from './api';
 import { gameBus } from './game/bus';
 import { PhaserGame } from './game/PhaserGame';
 import { AgentTracePanel } from './ui/AgentTracePanel';
+import { DioramaSlot } from './ui/DioramaSlot';
 import { DialogBox } from './ui/DialogBox';
 import { RagPanel } from './ui/RagPanel';
 import { UploadPage } from './ui/UploadPage';
@@ -144,6 +145,7 @@ export default function App() {
   if (phase === 'forming') {
     return (
       <main style={styles.forming}>
+        <DioramaSlot dioramaUrl={world?.dioramaUrl} />
         <h1 style={styles.formingTitle}>The world is forming…</h1>
         <p style={styles.hint}>press T to hide the trace</p>
         <AgentTracePanel events={events} open={traceOpen} onClose={() => setTraceOpen(false)} />
@@ -162,7 +164,7 @@ export default function App() {
             </button>
           )}
         </div>
-        {error ? <p style={{ color: colors.fail }}>{error}</p> : null}
+        {error ? <p style={styles.formingError}>{error}</p> : null}
       </main>
     );
   }
@@ -233,6 +235,7 @@ export default function App() {
 
 const styles: Record<string, React.CSSProperties> = {
   forming: {
+    position: 'relative',
     minHeight: '100%',
     display: 'flex',
     flexDirection: 'column',
@@ -241,9 +244,29 @@ const styles: Record<string, React.CSSProperties> = {
     gap: space.md,
     padding: space.lg,
   },
-  formingTitle: { margin: 0, fontFamily: fonts.header, fontSize: 36, color: colors.gold },
-  hint: { margin: 0, fontSize: 12, color: `${colors.parchment}66` },
-  formingActions: { display: 'flex', gap: space.sm, alignItems: 'center' },
+  formingTitle: {
+    position: 'relative',
+    zIndex: 1,
+    margin: 0,
+    fontFamily: fonts.header,
+    fontSize: 36,
+    color: colors.gold,
+  },
+  hint: {
+    position: 'relative',
+    zIndex: 1,
+    margin: 0,
+    fontSize: 12,
+    color: `${colors.parchment}66`,
+  },
+  formingError: { position: 'relative', zIndex: 1, color: colors.fail },
+  formingActions: {
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    gap: space.sm,
+    alignItems: 'center',
+  },
   skip: {
     padding: `${space.sm}px ${space.md}px`,
     borderRadius: radii.chip,

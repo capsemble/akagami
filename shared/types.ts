@@ -26,6 +26,8 @@ export interface World {
   cast: Character[];
   acts: Act[];
   status: WorldStatus;
+  /** Cached three.js diorama shown behind the world-forming screen. */
+  dioramaUrl?: string;
 }
 
 export interface Character {
@@ -109,6 +111,8 @@ export interface TeachingMove {
 export interface AgentEvent {
   ts: number;
   agent: string;
-  kind: 'start' | 'progress' | 'done' | 'rejected' | 'repair';
+  kind: 'start' | 'progress' | 'done' | 'rejected' | 'repair' | 'fallback';
   message: string;
+  /** Model ID that did the work, e.g. 'gemini-4-argon'. */
+  model?: string;
 }

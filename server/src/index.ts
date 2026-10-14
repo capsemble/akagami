@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import express from 'express';
 import type { Request, Response } from 'express';
 import type { NpcTurn, RagRunRequest, TeachingMove } from '@chapter-quest/shared';
-import { getUsage } from './gemini.js';
+import { MODELS, getUsage, getUsageByModel } from './gemini.js';
 import { loadEvents, loadRagTable, loadScene, loadWorld, pickRagKey } from './mocks.js';
 import { mocksDir, webDist } from './paths.js';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +23,13 @@ const fail = (res: Response, err: unknown, code = 500) => {
 };
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, version: VERSION, usage: getUsage() });
+  res.json({
+    ok: true,
+    version: VERSION,
+    models: MODELS,
+    usage: getUsage(),
+    usageByModel: getUsageByModel(),
+  });
 });
 
 /** Cached demo worlds, e.g. /api/demo/rag → mocks/world.rag.json */
