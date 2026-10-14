@@ -1,0 +1,44 @@
+:root {
+  color-scheme: dark;
+  --ground: #1f140d;
+  --parchment: #f4ecd8;
+  --gold: #d9a441;
+  --lapis: #2c4a8a;
+  --oracle: #6fb6ff;
+  --success: #3f7f2e;
+  --fail: #c0281e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--parchment);
+  font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Pixelify Sans', 'Courier New', monospace;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+}

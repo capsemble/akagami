@@ -4,13 +4,7 @@
  */
 
 export type WorldStatus =
-  | 'reading'
-  | 'designing'
-  | 'validating'
-  | 'painting'
-  | 'mapping'
-  | 'ready'
-  | 'failed';
+  'reading' | 'designing' | 'validating' | 'painting' | 'mapping' | 'ready' | 'failed';
 
 export interface Point {
   x: number;
@@ -43,13 +37,7 @@ export interface Character {
 }
 
 export type Verb =
-  | 'drive'
-  | 'aim_launch'
-  | 'plant_marker'
-  | 'interrogate'
-  | 'deduction'
-  | 'intercept'
-  | 'tune';
+  'drive' | 'aim_launch' | 'plant_marker' | 'interrogate' | 'deduction' | 'intercept' | 'tune';
 
 export interface Prediction {
   question: string;

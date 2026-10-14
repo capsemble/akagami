@@ -31,7 +31,9 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 function sceneSvg(scene, label) {
   const { width: w, height: h } = scene;
   const parts = [];
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
+  parts.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`,
+  );
   parts.push(`<defs>
     <pattern id="planks" width="160" height="56" patternUnits="userSpaceOnUse">
       <rect width="160" height="56" fill="${C.ground}"/>
@@ -53,35 +55,51 @@ function sceneSvg(scene, label) {
       parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="#140d08"/>`);
       continue;
     }
-    parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>`);
+    parts.push(
+      `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>`,
+    );
     const rows = Math.max(1, Math.floor(r.h / 55));
     for (let i = 0; i < rows; i++) {
       const y = r.y + 12 + i * (r.h / rows);
-      parts.push(`<rect x="${r.x + 10}" y="${y}" width="${r.w - 20}" height="${Math.max(6, r.h / rows - 18)}" rx="3" fill="${C.parchment}" opacity="0.5"/>`);
+      parts.push(
+        `<rect x="${r.x + 10}" y="${y}" width="${r.w - 20}" height="${Math.max(6, r.h / rows - 18)}" rx="3" fill="${C.parchment}" opacity="0.5"/>`,
+      );
     }
   }
 
   // Exits.
   for (const e of scene.exits) {
-    parts.push(`<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" rx="4" fill="${C.lapis}" opacity="0.75"/>`);
-    parts.push(`<text x="${e.x + e.w / 2}" y="${e.y + e.h / 2}" fill="${C.parchment}" font-family="monospace" font-size="16" text-anchor="middle" dominant-baseline="middle">exit</text>`);
+    parts.push(
+      `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" rx="4" fill="${C.lapis}" opacity="0.75"/>`,
+    );
+    parts.push(
+      `<text x="${e.x + e.w / 2}" y="${e.y + e.h / 2}" fill="${C.parchment}" font-family="monospace" font-size="16" text-anchor="middle" dominant-baseline="middle">exit</text>`,
+    );
   }
 
   // Interactables, labelled so you know what E does before any UI exists.
   for (const it of scene.interactables) {
-    parts.push(`<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" rx="8" fill="${C.gold}" opacity="0.85" stroke="#f2d08a" stroke-width="3"/>`);
-    parts.push(`<text x="${it.x + it.w / 2}" y="${it.y + it.h + 20}" fill="${C.gold}" font-family="monospace" font-size="20" text-anchor="middle">${esc(it.id)}</text>`);
+    parts.push(
+      `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" rx="8" fill="${C.gold}" opacity="0.85" stroke="#f2d08a" stroke-width="3"/>`,
+    );
+    parts.push(
+      `<text x="${it.x + it.w / 2}" y="${it.y + it.h + 20}" fill="${C.gold}" font-family="monospace" font-size="20" text-anchor="middle">${esc(it.id)}</text>`,
+    );
   }
 
   // NPC standing spots.
   for (const [id, p] of Object.entries(scene.npcSpots)) {
     const fill = id === 'oracle' ? C.oracle : C.parchment;
     parts.push(`<circle cx="${p.x}" cy="${p.y}" r="26" fill="${fill}" opacity="0.35"/>`);
-    parts.push(`<text x="${p.x}" y="${p.y + 48}" fill="${fill}" font-family="monospace" font-size="18" text-anchor="middle">${esc(id)}</text>`);
+    parts.push(
+      `<text x="${p.x}" y="${p.y + 48}" fill="${fill}" font-family="monospace" font-size="18" text-anchor="middle">${esc(id)}</text>`,
+    );
   }
 
   parts.push(`<circle cx="${scene.spawn.x}" cy="${scene.spawn.y}" r="10" fill="${C.success}"/>`);
-  parts.push(`<text x="40" y="60" fill="${C.parchment}" font-family="monospace" font-size="28" opacity="0.8">${esc(label)} — placeholder art</text>`);
+  parts.push(
+    `<text x="40" y="60" fill="${C.parchment}" font-family="monospace" font-size="28" opacity="0.8">${esc(label)} — placeholder art</text>`,
+  );
   parts.push('</svg>');
   return parts.join('\n');
 }
@@ -127,7 +145,10 @@ for (const name of ['archivist', 'oracle']) {
   console.log('portrait', name);
 }
 
-writeFileSync(join(outDir, 'sprite-archivist.svg'), spriteSvg('The Archivist', '#4a2f18', C.parchment));
+writeFileSync(
+  join(outDir, 'sprite-archivist.svg'),
+  spriteSvg('The Archivist', '#4a2f18', C.parchment),
+);
 writeFileSync(join(outDir, 'sprite-oracle.svg'), spriteSvg('The Oracle', C.lapis, C.oracle));
 writeFileSync(join(outDir, 'player.svg'), spriteSvg('Player', C.gold, C.parchment));
 console.log('sprites  archivist, oracle, player');

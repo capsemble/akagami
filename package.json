@@ -1,18 +1,24 @@
 {
-  "name": "akagami",
+  "name": "chapter-quest",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "description": "Upload a chapter, get a playable 2D RPG that teaches the concept.",
-  "engines": { "node": ">=20" },
-  "workspaces": ["shared", "server", "web"],
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
   "scripts": {
     "postinstall": "npm run build:shared",
-    "build:shared": "npm -w @akagami/shared run build",
-    "dev": "npm run build:shared && concurrently -n shared,server,web -c magenta,cyan,green \"npm -w @akagami/shared run dev\" \"npm -w @akagami/server run dev\" \"npm -w @akagami/web run dev\"",
-    "build": "npm run build:shared && npm -w @akagami/server run build && npm -w @akagami/web run build",
-    "typecheck": "npm run build:shared && npm -w @akagami/shared run typecheck && npm -w @akagami/server run typecheck && npm -w @akagami/web run typecheck",
-    "smoke": "npm -w @akagami/server run smoke",
+    "build:shared": "npm -w @chapter-quest/shared run build",
+    "dev": "npm run build:shared && concurrently -n shared,server,web -c magenta,cyan,green \"npm -w @chapter-quest/shared run dev\" \"npm -w @chapter-quest/server run dev\" \"npm -w @chapter-quest/web run dev\"",
+    "build": "npm run build:shared && npm -w @chapter-quest/server run build && npm -w @chapter-quest/web run build",
+    "typecheck": "npm run build:shared && npm -w @chapter-quest/shared run typecheck && npm -w @chapter-quest/server run typecheck && npm -w @chapter-quest/web run typecheck",
+    "smoke": "npm -w @chapter-quest/server run smoke",
     "lint": "eslint .",
     "format": "prettier --write .",
     "deploy": "bash scripts/deploy.sh"
@@ -21,6 +27,7 @@
     "@eslint/js": "^9.12.0",
     "concurrently": "^9.0.1",
     "eslint": "^9.12.0",
+    "globals": "^17.13.0",
     "prettier": "^3.3.3",
     "typescript": "^5.6.2",
     "typescript-eslint": "^8.8.0"
