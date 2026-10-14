@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from 'dotenv';
+import { Type } from '@google/genai';
 import { repoRoot } from '../src/paths.js';
 
 config({ path: join(repoRoot, '.env') });
@@ -31,8 +32,8 @@ async function main() {
   const world = await generateJson<{ title: string; logline: string }>(
     'Invent a tiny 2D RPG world that teaches binary search. Reply as JSON with "title" and a one-sentence "logline".',
     {
-      type: 'object',
-      properties: { title: { type: 'string' }, logline: { type: 'string' } },
+      type: Type.OBJECT,
+      properties: { title: { type: Type.STRING }, logline: { type: Type.STRING } },
       required: ['title', 'logline'],
     },
     { temperature: 0.9 },

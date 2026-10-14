@@ -29,6 +29,7 @@ export default function App() {
   const [world, setWorld] = useState<World | null>(null);
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [traceOpen, setTraceOpen] = useState(true);
+  const [skipped, setSkipped] = useState(false);
 
   const [actIndex, setActIndex] = useState(0);
   const [scene, setScene] = useState<Scene | null>(null);
@@ -44,6 +45,9 @@ export default function App() {
     () => events.some((e) => e.agent === 'Orchestrator' && e.kind === 'done'),
     [events],
   );
+  // The replay runs ~21s, which is the point during the demo and a nuisance
+  // while building. Skip jumps straight to the finished world.
+  const worldReady = formingDone || skipped;
 
   // --- upload -------------------------------------------------------------
   const handleSubmit = useCallback(async (input: File | string) => {
@@ -68,12 +72,12 @@ export default function App() {
   }, [phase, worldId]);
 
   useEffect(() => {
-    if (!formingDone || !worldId || world) return;
+    if (!worldReady || !worldId || world) return;
     api
       .getWorld(worldId)
       .then(setWorld)
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, [formingDone, worldId, world]);
+  }, [worldReady, worldId, world]);
 
   // --- the scene for the current act --------------------------------------
   useEffect(() => {
@@ -143,14 +147,21 @@ export default function App() {
         <h1 style={styles.formingTitle}>The world is forming…</h1>
         <p style={styles.hint}>press T to hide the trace</p>
         <AgentTracePanel events={events} open={traceOpen} onClose={() => setTraceOpen(false)} />
-        <button
-          type="button"
-          disabled={!world}
-          onClick={() => setPhase('playing')}
-          style={{ ...styles.enter, opacity: world ? 1 : 0.4 }}
-        >
-          {world ? `Enter ${world.title}` : 'Building…'}
-        </button>
+        <div style={styles.formingActions}>
+          <button
+            type="button"
+            disabled={!world}
+            onClick={() => setPhase('playing')}
+            style={{ ...styles.enter, opacity: world ? 1 : 0.4 }}
+          >
+            {world ? `Enter ${world.title}` : 'Building…'}
+          </button>
+          {world ? null : (
+            <button type="button" onClick={() => setSkipped(true)} style={styles.skip}>
+              skip ▸
+            </button>
+          )}
+        </div>
         {error ? <p style={{ color: colors.fail }}>{error}</p> : null}
       </main>
     );
@@ -158,7 +169,11 @@ export default function App() {
 
   return (
     <div style={styles.stage}>
-      {scene ? <PhaserGame scene={scene} /> : <p style={styles.loading}>painting the scene…</p>}
+      {scene ? (
+        <PhaserGame scene={scene} paused={ragOpen || dialog !== null} />
+      ) : (
+        <p style={styles.loading}>painting the scene…</p>
+      )}
 
       <header style={styles.hud}>
         <div>
@@ -228,6 +243,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   formingTitle: { margin: 0, fontFamily: fonts.header, fontSize: 36, color: colors.gold },
   hint: { margin: 0, fontSize: 12, color: `${colors.parchment}66` },
+  formingActions: { display: 'flex', gap: space.sm, alignItems: 'center' },
+  skip: {
+    padding: `${space.sm}px ${space.md}px`,
+    borderRadius: radii.chip,
+    border: `1px solid ${colors.parchment}33`,
+    background: 'transparent',
+    color: `${colors.parchment}88`,
+  },
   enter: {
     padding: `${space.sm}px ${space.lg}px`,
     borderRadius: radii.chip,

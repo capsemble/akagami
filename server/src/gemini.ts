@@ -6,6 +6,7 @@
  * sent to the client.
  */
 import { GoogleGenAI } from '@google/genai';
+import type { Part, Schema } from '@google/genai';
 
 /**
  * Model IDs come from env so we can swap them without a deploy.
@@ -113,7 +114,7 @@ export interface GenerateJsonOptions {
  */
 export async function generateJson<T>(
   prompt: string,
-  schema: Record<string, unknown>,
+  schema: Schema,
   opts: GenerateJsonOptions = {},
 ): Promise<T> {
   const res = await withRetry('generateJson', () =>
@@ -123,7 +124,7 @@ export async function generateJson<T>(
       config: {
         temperature: opts.temperature ?? 0.7,
         responseMimeType: 'application/json',
-        responseSchema: schema as never,
+        responseSchema: schema,
         ...(opts.systemInstruction ? { systemInstruction: opts.systemInstruction } : {}),
       },
     }),
@@ -160,15 +161,15 @@ export async function generateImage(
   prompt: string,
   refs: ImageRef[] = [],
 ): Promise<GeneratedImage> {
-  const parts: Record<string, unknown>[] = [
+  const parts: Part[] = [
     ...refs.map((r) => ({ inlineData: { mimeType: r.mimeType, data: r.data } })),
     { text: prompt },
   ];
   const res = await withRetry('generateImage', () =>
     gemini().models.generateContent({
       model: MODELS.image,
-      contents: [{ role: 'user', parts }] as never,
-      config: { responseModalities: ['IMAGE'] as never },
+      contents: [{ role: 'user', parts }],
+      config: { responseModalities: ['IMAGE'] },
     }),
   );
   countTokens(res);
