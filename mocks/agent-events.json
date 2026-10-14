@@ -1,0 +1,18 @@
+[
+  { "ts": 0, "agent": "Orchestrator", "kind": "start", "message": "Chapter received: \"Retrieval-Augmented Generation\" — 11,420 words, 3 figures." },
+  { "ts": 900, "agent": "Curriculum agent", "kind": "progress", "message": "Reading chapter. Splitting into teachable units…" },
+  { "ts": 2600, "agent": "Curriculum agent", "kind": "done", "message": "Found 5 concepts, 9 misconceptions. Top misconception: \"smaller chunks are always more precise\"." },
+  { "ts": 3400, "agent": "Story agent", "kind": "progress", "message": "Picking a world where the concept is the verb, not the vocabulary…" },
+  { "ts": 5200, "agent": "Story agent", "kind": "done", "message": "World: \"The Oracle of the Old Library\". The Oracle is the model, the scrolls are the documents, the satchel is top-k." },
+  { "ts": 6100, "agent": "Mechanic agent", "kind": "progress", "message": "Binding concepts to verbs: chunking → tune the cut, top-k → fill the satchel, grounding → interrogate." },
+  { "ts": 7800, "agent": "Validator", "kind": "rejected", "message": "Rejected Act II (guessable, 64%). A player can win without touching overlap. Repairing…" },
+  { "ts": 9300, "agent": "Mechanic agent", "kind": "repair", "message": "Act II rewritten: the gold fact now straddles the cut, so overlap is the only way through." },
+  { "ts": 10700, "agent": "Validator", "kind": "done", "message": "Re-scored: Act II guessable 31%, concept-necessary. 3 of 5 acts kept for the prototype." },
+  { "ts": 11600, "agent": "Art director", "kind": "progress", "message": "Style locked: candlelit oak, parchment, gold rim light. Painting scene 1/3 — the Scriptorium." },
+  { "ts": 13400, "agent": "Art director", "kind": "progress", "message": "Painting scene 2/3 — the Stacks." },
+  { "ts": 15100, "agent": "Art director", "kind": "progress", "message": "Painting scene 3/3 — the Sanctum of the Blue Flame." },
+  { "ts": 16800, "agent": "Cast agent", "kind": "done", "message": "Cast sheet: The Archivist (3 moods), The Oracle (3 moods). Portraits kept on-model via reference images." },
+  { "ts": 18200, "agent": "Mapper", "kind": "progress", "message": "Tracing colliders from scene art: 11 blocked rects, 2 interactables, 1 exit per scene." },
+  { "ts": 19900, "agent": "Mapper", "kind": "done", "message": "Walkability check passed: spawn reaches every interactable and exit." },
+  { "ts": 21000, "agent": "Orchestrator", "kind": "done", "message": "World ready. 3 acts, 3 scenes, 2 characters. Step into the Scriptorium." }
+]
