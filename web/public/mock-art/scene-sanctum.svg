@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<defs>
+    <pattern id="planks" width="160" height="56" patternUnits="userSpaceOnUse">
+      <rect width="160" height="56" fill="#1f140d"/>
+      <rect width="160" height="2" y="54" fill="#271a10"/>
+      <rect width="2" height="56" x="78" fill="#271a10"/>
+    </pattern>
+    <radialGradient id="candle" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#d9a441" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#d9a441" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+<rect width="1600" height="900" fill="url(#planks)"/>
+<rect width="1600" height="900" fill="url(#candle)"/>
+<rect x="0" y="0" width="1600" height="90" fill="#140d08"/>
+<rect x="0" y="860" width="1600" height="40" fill="#140d08"/>
+<rect x="0" y="90" width="40" height="810" fill="#140d08"/>
+<rect x="1560" y="90" width="40" height="810" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="1570" y="102" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="159.85714285714286" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="217.71428571428572" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="275.57142857142856" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="333.42857142857144" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="391.2857142857143" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="449.1428571428571" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="507" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="564.8571428571429" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="622.7142857142857" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="680.5714285714286" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="738.4285714285714" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="796.2857142857142" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1570" y="854.1428571428571" width="20" height="39.857142857142854" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="640" y="200" width="320" height="220" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="650" y="212" width="300" height="37" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="650" y="267" width="300" height="37" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="650" y="322" width="300" height="37" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="650" y="377" width="300" height="37" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="160" y="240" width="260" height="120" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="170" y="252" width="240" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="170" y="312" width="240" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1180" y="240" width="260" height="120" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="1190" y="252" width="240" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1190" y="312" width="240" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="160" y="620" width="200" height="120" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="170" y="632" width="180" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="170" y="692" width="180" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1240" y="620" width="200" height="120" rx="6" fill="#3a2514" stroke="#15100a" stroke-width="3"/>
+<rect x="1250" y="632" width="180" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="1250" y="692" width="180" height="42" rx="3" fill="#f4ecd8" opacity="0.5"/>
+<rect x="760" y="820" width="100" height="40" rx="4" fill="#2c4a8a" opacity="0.75"/>
+<text x="810" y="840" fill="#f4ecd8" font-family="monospace" font-size="16" text-anchor="middle" dominant-baseline="middle">exit</text>
+<rect x="700" y="500" width="200" height="70" rx="8" fill="#d9a441" opacity="0.85" stroke="#f2d08a" stroke-width="3"/>
+<text x="800" y="590" fill="#d9a441" font-family="monospace" font-size="20" text-anchor="middle">claim-board</text>
+<rect x="760" y="300" width="80" height="80" rx="8" fill="#d9a441" opacity="0.85" stroke="#f2d08a" stroke-width="3"/>
+<text x="800" y="400" fill="#d9a441" font-family="monospace" font-size="20" text-anchor="middle">blue-flame</text>
+<circle cx="800" cy="440" r="26" fill="#6fb6ff" opacity="0.35"/>
+<text x="800" y="488" fill="#6fb6ff" font-family="monospace" font-size="18" text-anchor="middle">oracle</text>
+<circle cx="520" cy="600" r="26" fill="#f4ecd8" opacity="0.35"/>
+<text x="520" y="648" fill="#f4ecd8" font-family="monospace" font-size="18" text-anchor="middle">archivist</text>
+<circle cx="800" cy="760" r="10" fill="#3f7f2e"/>
+<text x="40" y="60" fill="#f4ecd8" font-family="monospace" font-size="28" opacity="0.8">Sanctum of the Blue Flame — placeholder art</text>
+</svg>

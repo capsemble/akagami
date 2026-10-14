@@ -1,0 +1,87 @@
+{
+  "id": "world-oracle-library",
+  "title": "The Oracle of the Old Library",
+  "logline": "An Oracle that answers any question has started lying. Repair the library it reads from, and you repair the Oracle.",
+  "artStyle": "Candlelit 2D pixel-painting, dark oak and parchment, warm gold rim light, soft blue glow from the Oracle. Top-down 3/4 view, 1600x900 scenes.",
+  "status": "ready",
+  "cast": [
+    {
+      "id": "archivist",
+      "name": "The Archivist",
+      "persona": "Keeper of the stacks. Dry, precise, allergic to hand-waving. Explains by contrast: shows you the broken version first, then the fix. Calls scrolls 'documents' when annoyed.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/archivist-neutral.svg",
+        "pleased": "/mock-art/portraits/archivist-pleased.svg",
+        "worried": "/mock-art/portraits/archivist-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-archivist.svg"
+    },
+    {
+      "id": "oracle",
+      "name": "The Oracle",
+      "persona": "A voice in the blue flame that can only say what it was just handed. Confident even when starved of facts — which is exactly the problem. Never admits it is guessing unless shown the gap.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/oracle-neutral.svg",
+        "pleased": "/mock-art/portraits/oracle-pleased.svg",
+        "worried": "/mock-art/portraits/oracle-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-oracle.svg"
+    }
+  ],
+  "acts": [
+    {
+      "id": "act1",
+      "conceptId": "chunking",
+      "title": "Torn Scrolls",
+      "goal": "The night winds tore every scroll at a different place. Re-cut the scrolls so a single piece still holds a whole answer, then hand one to the Oracle.",
+      "verbs": ["tune", "plant_marker"],
+      "sceneId": "scene-scriptorium",
+      "prediction": {
+        "question": "You cut the scrolls into 40-word pieces. The answer to 'what dose did the Archivist record?' spans two sentences. What does the Oracle say?",
+        "options": [
+          "The full answer — small pieces are always more precise",
+          "Half the answer, confidently, because the piece it got was cut mid-fact",
+          "Nothing — it refuses when a piece is too small"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "A chunk is the smallest thing retrieval can hand over. Cut smaller than a fact and no single chunk can answer the question, so the Oracle completes it from habit instead. Overlap is cheap insurance: it re-staples the seam so a fact cut in half still survives in one piece."
+    },
+    {
+      "id": "act3",
+      "conceptId": "top-k",
+      "title": "The Oracle's Satchel",
+      "goal": "The Oracle will only read what fits in its satchel. Tune how many scrolls you stuff in — too few and the fact is missing, too many and the truth drowns in neighbours.",
+      "verbs": ["tune", "intercept"],
+      "sceneId": "scene-stacks",
+      "prediction": {
+        "question": "You raise k from 3 to 8 without reranking. The gold scroll is still in there. What happens to the answer?",
+        "options": [
+          "Strictly better — more context can only help",
+          "Unchanged — the Oracle ignores anything irrelevant",
+          "Worse — five plausible neighbours give it new claims to borrow"
+        ],
+        "correctIndex": 2
+      },
+      "explainAfter": "k is a budget, not a volume knob. Every extra scroll is one more thing the Oracle is allowed to believe. Reranking lets you keep the budget small and still land the gold scroll on top — fewer, better scrolls beat more, noisier ones."
+    },
+    {
+      "id": "act4",
+      "conceptId": "grounding",
+      "title": "The Lying Oracle",
+      "goal": "The Oracle has just stated a dose nobody ever wrote down. Interrogate it, make it point at the scroll each claim came from, and strike the claim with no scroll behind it.",
+      "verbs": ["interrogate", "deduction"],
+      "sceneId": "scene-sanctum",
+      "prediction": {
+        "question": "Every retrieved scroll is relevant and the answer sounds perfect. Is it grounded?",
+        "options": [
+          "Yes — relevant scrolls guarantee a grounded answer",
+          "Not necessarily — a claim can still appear that no scroll supports",
+          "Only if the scrolls are ranked"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "Grounding is a per-claim property, not a per-answer vibe. Retrieval decides what the Oracle *could* say; grounding checks what it *did* say, sentence by sentence, against the scrolls it was handed. Anything that cannot point at a scroll is a guess wearing a confident voice."
+    }
+  ]
+}

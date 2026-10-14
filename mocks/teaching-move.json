@@ -1,0 +1,15 @@
+{
+  "technique": "contrast",
+  "speaker": "The Archivist",
+  "message": "Watch. Here is the scroll cut at forty words: \"...the Archivist recorded a dose of forty\" — and it ends. Here is the same scroll cut at two hundred and fifty with thirty words of overlap: \"...a dose of forty milligrams, taken at dusk.\" Same shelf, same Oracle, same question. The only thing that changed is where the scissors fell.",
+  "check": {
+    "question": "Why did the first cut produce a confident wrong answer instead of no answer?",
+    "options": [
+      "The retrieval step failed to find the scroll",
+      "The chunk was found, but the fact was split across the cut",
+      "The Oracle was configured with the wrong temperature"
+    ],
+    "correctIndex": 1,
+    "why": "Retrieval worked — it returned the right scroll. The fact just did not survive the cut, and a model handed half a fact tends to finish it rather than stop."
+  }
+}
