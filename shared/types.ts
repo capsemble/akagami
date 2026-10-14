@@ -116,3 +116,155 @@ export interface AgentEvent {
   /** Model ID that did the work, e.g. 'gemini-4-argon'. */
   model?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Design-time artifacts: chapter in → validated game script out.
+// Everything above this line is the runtime contract and is unchanged.
+// ---------------------------------------------------------------------------
+
+export type ConceptKind = 'formula' | 'ai-system' | 'qualitative';
+
+export interface Concept {
+  id: string;
+  name: string;
+  /** The one sentence a player must end up believing. */
+  keyRule: string;
+  /** ids of concepts that must be taught first. */
+  requires: string[];
+  difficulty: 1 | 2 | 3 | 4 | 5;
+  misconceptions: string[];
+  kind: ConceptKind;
+  /** VERBATIM from the chapter — the validator checks this is really there. */
+  quote: string;
+  page: number;
+}
+
+export interface Curriculum {
+  title: string;
+  subject: string;
+  concepts: Concept[];
+}
+
+export interface CastMember {
+  id: string;
+  name: string;
+  look: string;
+  persona: string;
+  /** The misconception this character personifies, if any. */
+  misconception?: string;
+}
+
+export interface OutlineAct {
+  id: string;
+  conceptId: string;
+  title: string;
+  sceneName: string;
+  oneLine: string;
+}
+
+export interface Outline {
+  title: string;
+  logline: string;
+  artStyle: string;
+  villain: string;
+  twist: string;
+  cast: CastMember[];
+  acts: OutlineAct[];
+}
+
+export interface DialogueLine {
+  speaker: string;
+  line: string;
+}
+
+export interface Analogy {
+  text: string;
+  /** Where the analogy stops being true. Never empty — a lie with no edge is a lie. */
+  breaksWhere: string;
+}
+
+export type ExitSide = 'north' | 'south' | 'east' | 'west';
+
+export interface SceneObject {
+  id: string;
+  label: string;
+  look: string;
+}
+
+export interface SceneSpec {
+  name: string;
+  description: string;
+  objects: SceneObject[];
+  exitSide: ExitSide;
+}
+
+/**
+ * The simulation behind a 'formula' mechanic: a tiny explicit-Euler loop the
+ * evaluator runs. Expressions are read by expr.ts and may reference params,
+ * constants, state and (in `win`/`outputs`) earlier outputs.
+ *
+ * TODO(hrutik): this is the wire shape the model emits, written to match the
+ * params/constants/outputs/state namespaces the evaluator resolves. If the
+ * tested expr.ts uses a different SimSpec, change it here and in
+ * server/src/schemas.ts (SIM_SPEC_SCHEMA) — those are the only two places.
+ */
+export interface SimSpec {
+  /** Fixed values, e.g. { g: 9.81 }. */
+  constants: Record<string, number>;
+  /** Initial state, as expressions over params/constants, e.g. { x: '0', v: 'u0' }. */
+  state: Record<string, string>;
+  /** Per-step updates over state/params/constants, e.g. { v: 'v + a * dt' }. */
+  step: Record<string, string>;
+  /** Computed once the run ends, e.g. { stopDistance: 'x' }. */
+  outputs: Record<string, string>;
+  /** Boolean expression. True = the player's settings solved it. */
+  win: string;
+  /** Integration step in seconds. */
+  dt: number;
+  /** Ceiling on simulated seconds, so a bad spec cannot hang the run. */
+  maxTime: number;
+  /** Optional boolean expression that ends the run early, e.g. 'v <= 0'. */
+  until?: string;
+}
+
+export interface ParamSpec {
+  name: string;
+  min: number;
+  max: number;
+  /** Where the dial starts. Must NOT already win, or the act is free. */
+  default: number;
+  /** A value that wins. The validator checks this really does. */
+  solution: number;
+}
+
+export type RagAct = 'chunking' | 'embeddings' | 'topk' | 'grounding' | 'injection';
+
+export type Mechanic =
+  | { type: 'formula'; spec: SimSpec; params: ParamSpec[] }
+  | { type: 'ai-system'; ragAct: RagAct; question: string; goldFact: string }
+  | { type: 'qualitative'; rubric: { mustShow: string[]; misconceptions: string[] } };
+
+export interface ActSpec {
+  id: string;
+  conceptId: string;
+  title: string;
+  goal: string;
+  verbs: Verb[];
+  prediction: Prediction;
+  explainAfter: string;
+  analogy: Analogy;
+  /** At most 6 lines, each at most 25 words. */
+  dialogue: DialogueLine[];
+  scene: SceneSpec;
+  mechanic: Mechanic;
+}
+
+export interface GameScript {
+  id: string;
+  curriculum: Curriculum;
+  outline: Outline;
+  acts: ActSpec[];
+  /** sha256 of the chapter text this was built from. */
+  sourceHash: string;
+  createdAt: string;
+}

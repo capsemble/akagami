@@ -6,3 +6,6 @@ tmp/
 *.local
 .DS_Store
 *.tsbuildinfo
+
+# design-stage cache (sha256 of chapter text)
+server/.cache/

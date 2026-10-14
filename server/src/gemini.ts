@@ -187,6 +187,12 @@ function withTimeout<T>(ms: number, label: string, work: Promise<T>): Promise<T>
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
+export interface ImageRef {
+  mimeType: string;
+  /** base64 */
+  data: string;
+}
+
 export interface GenerateJsonOptions {
   temperature?: number;
   /** Explicit model ID; wins over `role`. */
@@ -196,6 +202,8 @@ export interface GenerateJsonOptions {
   systemInstruction?: string;
   /** Agent name used if a design call has to fall back. */
   agent?: string;
+  /** Files sent inline alongside the prompt, e.g. the source PDF. */
+  files?: ImageRef[];
 }
 
 function parseJson<T>(text: string): T {
@@ -223,10 +231,15 @@ export async function generateJson<T>(
   const role: ModelRole = opts.role ?? 'text';
   const model = opts.model ?? ROLE_MODEL[role]();
 
+  const parts: Part[] = [
+    ...(opts.files ?? []).map((f) => ({ inlineData: { mimeType: f.mimeType, data: f.data } })),
+    { text: prompt },
+  ];
+
   const call = (modelId: string) =>
     gemini().models.generateContent({
       model: modelId,
-      contents: prompt,
+      contents: [{ role: 'user', parts }],
       config: {
         temperature: opts.temperature ?? 0.7,
         responseMimeType: 'application/json',
@@ -270,12 +283,6 @@ export interface GeneratedImage {
   /** base64, as returned by the API */
   data: string;
   bytes: Buffer;
-}
-
-export interface ImageRef {
-  mimeType: string;
-  /** base64 */
-  data: string;
 }
 
 /**
