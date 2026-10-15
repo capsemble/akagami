@@ -13,10 +13,10 @@ interface EvaluatorApi {
 }
 
 /**
- * The simulator lives in shared/expr.ts, which is still the placeholder. Until
- * it lands this returns null and the panel says so rather than inventing a
- * result — a physics act that lies about its physics is worse than one that
- * admits it is not wired up.
+ * The simulator lives in shared/expr.ts. This stays a lookup rather than a
+ * direct import so the panel degrades to "not wired up" instead of crashing if
+ * the evaluator is ever swapped out — a physics act that lies about its physics
+ * is worse than one that admits it is not running.
  */
 export function evaluator(): EvaluatorApi | null {
   const candidate = shared as unknown as Partial<EvaluatorApi>;

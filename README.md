@@ -107,8 +107,7 @@ Replace the SVGs with real art under the same filenames and nothing else changes
 ## What is deliberately fake
 
 Everything marked `STUB` in `server/src/index.ts`: no generation pipeline, no
-retrieval, no Firestore, no auth. `shared/expr.ts` throws on purpose until the
-tested evaluator lands. The model IDs in `.env.example` are unverified —
+retrieval, no Firestore, no auth. The model IDs in `.env.example` are unverified —
 confirm them in AI Studio.
 
 ## Deploy

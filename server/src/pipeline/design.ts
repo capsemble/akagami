@@ -110,7 +110,7 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
       event(
         VALIDATOR,
         'progress',
-        'Formula checks are off: shared/expr.ts has not landed yet. Structure, grounding, content and ai-system checks still run.',
+        'Formula checks are off: no evaluator available. Structure, grounding, content and ai-system checks still run.',
       ),
     );
   }
