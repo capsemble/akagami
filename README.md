@@ -29,6 +29,33 @@ runs off `mocks/` with no API key and no server round-trips.
 Controls in the scene: **WASD/arrows** move · **E** interact · **B** collider
 overlay · **T** agent trace · **Esc** close a panel.
 
+### Troubleshooting
+
+**`ENOSPC: System limit for number of file watchers reached`** — Linux has run
+out of inotify watches, so Vite and `tsx watch` cannot start. On a dev box this
+is almost always VS Code watching `node_modules` across every open project; it
+can hold 60k+ watches on its own.
+
+Unblock immediately, no sudo, no editor changes:
+
+```bash
+npm run dev:poll     # polls for changes instead; ~5% CPU idle, no inotify
+```
+
+Fix it properly (both, ideally):
+
+```bash
+# 1. raise the ceiling (survives reboots)
+sudo sysctl -w fs.inotify.max_user_watches=524288
+echo 'fs.inotify.max_user_watches=524288' | sudo tee /etc/sysctl.d/60-inotify.conf
+
+# 2. stop VS Code eating them: settings.json
+#    "files.watcherExclude": { "**/node_modules/**": true, "**/dist/**": true }
+```
+
+Check who is holding them with:
+`for d in /proc/[0-9]*; do ...` — or just close VS Code and watch the error vanish.
+
 ## Layout and ownership
 
 ```

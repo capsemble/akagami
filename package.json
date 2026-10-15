@@ -16,6 +16,7 @@
     "postinstall": "npm run build:shared",
     "build:shared": "npm -w @chapter-quest/shared run build",
     "dev": "npm run build:shared && concurrently -n shared,server,web -c magenta,cyan,green \"npm -w @chapter-quest/shared run dev\" \"npm -w @chapter-quest/server run dev\" \"npm -w @chapter-quest/web run dev\"",
+    "dev:poll": "CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=400 npm run dev",
     "build": "npm run build:shared && npm -w @chapter-quest/server run build && npm -w @chapter-quest/web run build",
     "typecheck": "npm run build:shared && npm -w @chapter-quest/shared run typecheck && npm -w @chapter-quest/server run typecheck && npm -w @chapter-quest/web run typecheck",
     "smoke": "npm -w @chapter-quest/server run smoke",
