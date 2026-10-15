@@ -8,7 +8,26 @@ async function readJson<T>(...segments: string[]): Promise<T> {
   return JSON.parse(await readFile(join(mocksDir, ...segments), 'utf8')) as T;
 }
 
-export const loadWorld = (name = 'rag') => readJson<World>(`world.${name}.json`);
+/**
+ * The demo worlds, by both their world id and their short demo name, so
+ * /api/worlds/:id and /api/demo/:name resolve to the same fixtures.
+ */
+const WORLDS: Record<string, string> = {
+  'world-ghat-9': 'world.kinematics.json',
+  kinematics: 'world.kinematics.json',
+  'world-oracle-library': 'world.rag.json',
+  rag: 'world.rag.json',
+};
+
+/** What a fresh upload gets until the real pipeline builds one. */
+export const DEFAULT_WORLD_ID = 'world-ghat-9';
+
+export async function loadWorld(idOrName: string = DEFAULT_WORLD_ID): Promise<World> {
+  const file = WORLDS[idOrName];
+  if (!file)
+    throw new Error(`unknown world "${idOrName}" (have: ${Object.keys(WORLDS).join(', ')})`);
+  return readJson<World>(file);
+}
 export const loadScene = (sceneId: string) => readJson<Scene>('scenes', `${sceneId}.json`);
 export const loadEvents = () => readJson<AgentEvent[]>('agent-events.json');
 export const loadRagTable = () => readJson<Record<string, RagRunResponse>>('rag.json');

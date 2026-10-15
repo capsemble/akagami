@@ -5,7 +5,14 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { NpcTurn, RagRunRequest, TeachingMove } from '@chapter-quest/shared';
 import { MODELS, getUsage, getUsageByModel } from './gemini.js';
-import { loadEvents, loadRagTable, loadScene, loadWorld, pickRagKey } from './mocks.js';
+import {
+  DEFAULT_WORLD_ID,
+  loadEvents,
+  loadRagTable,
+  loadScene,
+  loadWorld,
+  pickRagKey,
+} from './mocks.js';
 import { mocksDir, webDist } from './paths.js';
 import { readFile } from 'node:fs/promises';
 
@@ -51,16 +58,18 @@ app.post('/api/worlds', async (req: Request, res: Response) => {
     console.log(
       `[worlds] create requested: ${filename ?? 'inline text'}, ${String(text ?? '').length} chars`,
     );
-    const world = await loadWorld();
+    // "demo:rag" asks for the Oracle world; anything else gets the default.
+    const wanted = /\brag\b/.test(String(text ?? '')) ? 'rag' : DEFAULT_WORLD_ID;
+    const world = await loadWorld(wanted);
     res.status(202).json({ id: world.id });
   } catch (err) {
     fail(res, err);
   }
 });
 
-app.get('/api/worlds/:id', async (_req, res) => {
+app.get('/api/worlds/:id', async (req, res) => {
   try {
-    res.json(await loadWorld());
+    res.json(await loadWorld(req.params.id));
   } catch (err) {
     fail(res, err, 404);
   }
