@@ -38,7 +38,8 @@ export default function App() {
   const [actIndex, setActIndex] = useState(0);
   const [scene, setScene] = useState<Scene | null>(null);
 
-  const [dialog, setDialog] = useState<{ speaker: string; text: string } | null>(null);
+  /** Index into the current act's dialogue, or null when nobody is speaking. */
+  const [line, setLine] = useState<number | null>(null);
   const [ragOpen, setRagOpen] = useState(false);
   const [ragParams, setRagParams] = useState<RagParams>(DEFAULT_RAG);
   const [ragResult, setRagResult] = useState<RagRunResponse | null>(null);
@@ -50,6 +51,12 @@ export default function App() {
 
   const act: Act | null = world?.acts[actIndex] ?? null;
   const formula: FormulaMechanic | null = act?.mechanic?.type === 'formula' ? act.mechanic : null;
+
+  const dialogue = act?.dialogue ?? [];
+  const speaking = line !== null ? dialogue[line] : undefined;
+  const speakingCast = speaking
+    ? world?.cast.find((c) => c.name === speaking.speaker || c.id === speaking.speaker)
+    : undefined;
   const formingDone = useMemo(
     () => events.some((e) => e.agent === 'Orchestrator' && e.kind === 'done'),
     [events],
@@ -88,6 +95,11 @@ export default function App() {
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [worldReady, worldId, world]);
 
+  // The cast says its piece when you arrive, once per act.
+  useEffect(() => {
+    setLine(act?.dialogue?.length ? 0 : null);
+  }, [act]);
+
   // Each act starts unsolved, at its declared default dial positions.
   useEffect(() => {
     setSimOutcome(null);
@@ -117,6 +129,7 @@ export default function App() {
       if (e.key === 'Escape') {
         setRagOpen(false);
         setSimOpen(false);
+        setLine(null);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -126,6 +139,7 @@ export default function App() {
   // --- Phaser → React -----------------------------------------------------
   useEffect(() => {
     return gameBus.on('interact', ({ id }) => {
+      if (line !== null) return; // let them finish talking first
       if (act?.mechanic?.type === 'formula') {
         setSimOpen(true);
         return;
@@ -134,12 +148,9 @@ export default function App() {
         setRagOpen(true);
         return;
       }
-      setDialog({
-        speaker: world?.cast[0]?.name ?? 'The Archivist',
-        text: act ? `${act.goal}\n\n(${id})` : `You examine the ${id.replace(/-/g, ' ')}.`,
-      });
+      console.info('[game] nothing wired to', id);
     });
-  }, [act, world]);
+  }, [act, world, line]);
 
   const runRag = useCallback(async () => {
     if (!world || !act) return;
@@ -198,7 +209,7 @@ export default function App() {
   return (
     <div style={styles.stage}>
       {scene ? (
-        <PhaserGame scene={scene} paused={ragOpen || simOpen || dialog !== null} />
+        <PhaserGame scene={scene} paused={ragOpen || simOpen || line !== null} />
       ) : (
         <p style={styles.loading}>painting the scene…</p>
       )}
@@ -226,7 +237,14 @@ export default function App() {
         </div>
       </header>
 
-      <div style={styles.keyHint}>WASD move · E interact · B colliders · T trace</div>
+      <div style={styles.keyHint}>
+        WASD move · E interact · B colliders · T trace
+        {dialogue.length > 0 ? (
+          <button type="button" onClick={() => setLine(0)} style={styles.replay}>
+            replay dialogue
+          </button>
+        ) : null}
+      </div>
 
       {traceOpen ? (
         <div style={styles.traceSlot}>
@@ -263,9 +281,19 @@ export default function App() {
         </div>
       ) : null}
 
-      {dialog ? (
+      {speaking ? (
         <div style={styles.dialogSlot}>
-          <DialogBox speaker={dialog.speaker} text={dialog.text} onClose={() => setDialog(null)} />
+          <DialogBox
+            speaker={speaking.speaker}
+            {...(speakingCast
+              ? { portrait: speakingCast.portraits[speaking.mood ?? 'neutral'] }
+              : {})}
+            text={speaking.line}
+            {...(line !== null && line < dialogue.length - 1
+              ? { onNext: () => setLine(line + 1) }
+              : {})}
+            onClose={() => setLine(null)}
+          />
         </div>
       ) : null}
 
@@ -366,6 +394,15 @@ const styles: Record<string, React.CSSProperties> = {
     left: space.md,
     fontSize: 12,
     color: `${colors.parchment}66`,
+  },
+  replay: {
+    marginLeft: space.sm,
+    padding: `1px ${space.xs}px`,
+    borderRadius: radii.chip,
+    border: `1px solid ${colors.parchment}33`,
+    background: 'transparent',
+    color: `${colors.parchment}66`,
+    fontSize: 11,
   },
   traceSlot: { position: 'absolute', top: 72, right: space.md },
   overlay: {

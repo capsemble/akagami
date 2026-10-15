@@ -167,3 +167,27 @@ test('the winning run of each act ends inside its own target band', async () => 
     );
   }
 });
+
+test('every dialogue line names a real cast member and respects the limits', async () => {
+  for (const id of ['world-ghat-9', 'world-oracle-library']) {
+    const world = await loadWorld(id);
+    const cast = new Map(world.cast.flatMap((c) => [[c.name, c] as const, [c.id, c] as const]));
+
+    for (const act of world.acts) {
+      const lines = act.dialogue ?? [];
+      assert.ok(lines.length > 0, `${id} ${act.id} has no dialogue, so the cast never speaks`);
+      assert.ok(lines.length <= 6, `${id} ${act.id} has ${lines.length} lines, max 6`);
+
+      for (const [i, line] of lines.entries()) {
+        const member = cast.get(line.speaker);
+        assert.ok(member, `${id} ${act.id}[${i}]: "${line.speaker}" is not in the cast`);
+        const words = line.line.trim().split(/\s+/).length;
+        assert.ok(words <= 25, `${id} ${act.id}[${i}]: ${words} words, max 25`);
+        assert.ok(
+          member && member.portraits[line.mood ?? 'neutral'],
+          `${id} ${act.id}[${i}]: no ${line.mood ?? 'neutral'} portrait for ${line.speaker}`,
+        );
+      }
+    }
+  }
+});

@@ -7,6 +7,9 @@ interface Props {
   text: string;
   options?: string[];
   onPick?: (index: number) => void;
+  /** Advance to the next line. Absent on the last line. */
+  onNext?: () => void;
+  /** Esc, or the skip control: abandon the whole exchange. */
   onClose: () => void;
   /** ms per character */
   speed?: number;
@@ -19,6 +22,7 @@ export function DialogBox({
   text,
   options,
   onPick,
+  onNext,
   onClose,
   speed = 18,
 }: Props) {
@@ -26,6 +30,8 @@ export function DialogBox({
   const done = shown >= text.length;
   const doneRef = useRef(done);
   doneRef.current = done;
+  const nextRef = useRef(onNext);
+  nextRef.current = onNext;
 
   useEffect(() => {
     setShown(0);
@@ -47,21 +53,37 @@ export function DialogBox({
         onClose();
         return;
       }
-      if (e.key === 'Enter' && !doneRef.current) setShown(text.length);
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      if (!doneRef.current) setShown(text.length);
+      else nextRef.current?.();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, text.length]);
 
   return (
-    <div style={styles.box} onClick={() => !done && setShown(text.length)}>
+    <div
+      style={styles.box}
+      onClick={() => (done ? onNext?.() : setShown(text.length))}
+      role="button"
+      tabIndex={0}
+      aria-label={`${speaker}: ${text}`}
+    >
       <div style={styles.head}>
         {portrait ? (
           <img src={portrait} alt="" width={56} height={56} style={styles.portrait} />
         ) : null}
         <span style={styles.speaker}>{speaker}</span>
-        <button type="button" onClick={onClose} style={styles.close}>
-          Esc ✕
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          style={styles.close}
+        >
+          Esc skip
         </button>
       </div>
 
@@ -69,6 +91,10 @@ export function DialogBox({
         {text.slice(0, shown)}
         {done ? null : <span style={styles.caret}>▌</span>}
       </p>
+
+      {done && onNext && !(options && options.length > 0) ? (
+        <div style={styles.next}>click, Enter or Space ▸</div>
+      ) : null}
 
       {done && options && options.length > 0 ? (
         <div style={styles.options}>
@@ -115,6 +141,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   text: { margin: 0, lineHeight: 1.6, minHeight: '3.2em' },
   caret: { color: colors.gold },
+  next: {
+    textAlign: 'right',
+    fontSize: 11,
+    color: `${colors.parchment}66`,
+    fontFamily: fonts.header,
+  },
   options: { display: 'grid', gap: space.xs },
   option: {
     textAlign: 'left',

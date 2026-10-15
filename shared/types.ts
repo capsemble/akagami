@@ -60,6 +60,8 @@ export interface Act {
   explainAfter: string;
   /** How the act is actually played. Absent on acts that are dialogue only. */
   mechanic?: Mechanic;
+  /** Played on entering the act. At most 6 lines, each at most 25 words. */
+  dialogue?: DialogueLine[];
 }
 
 export interface Scene {
@@ -182,8 +184,11 @@ export interface Outline {
 }
 
 export interface DialogueLine {
+  /** Must match a cast member's name, so the portrait can be found. */
   speaker: string;
   line: string;
+  /** Which portrait to show. Defaults to neutral. */
+  mood?: 'neutral' | 'pleased' | 'worried';
 }
 
 export interface Analogy {
