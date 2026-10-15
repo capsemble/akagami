@@ -49,15 +49,39 @@
       "mechanic": {
         "type": "formula",
         "spec": {
-          "constants": { "distanceKm": 6, "timeMin": 10, "walkMaxKmh": 25 },
+          "constants": {
+            "distanceKm": 6,
+            "timeMin": 10,
+            "walkMaxKmh": 25
+          },
           "state": {},
           "step": {},
-          "outputs": { "impliedSpeed": "distanceKm * 60 / timeMin" },
+          "outputs": {
+            "impliedSpeed": "distanceKm * 60 / timeMin"
+          },
           "win": "claimedSpeed >= impliedSpeed - 1 && claimedSpeed <= impliedSpeed + 1 && impliedSpeed > walkMaxKmh",
           "dt": 1,
-          "maxTime": 0
+          "maxTime": 0,
+          "visual": {
+            "kind": "gauge",
+            "y": "impliedSpeed",
+            "yLabel": "implied speed (km/h)",
+            "band": {
+              "from": "0",
+              "to": "walkMaxKmh",
+              "label": "Green is what a person can actually walk. Dalvi's timings land outside it — that is the lie."
+            }
+          }
         },
-        "params": [{ "name": "claimedSpeed", "min": 0, "max": 60, "default": 6, "solution": 36 }]
+        "params": [
+          {
+            "name": "claimedSpeed",
+            "min": 0,
+            "max": 60,
+            "default": 6,
+            "solution": 36
+          }
+        ]
       }
     },
     {
@@ -80,16 +104,56 @@
       "mechanic": {
         "type": "formula",
         "spec": {
-          "constants": { "u0": 22, "brakeRate": 1.6, "sidingEnd": 180 },
-          "state": { "x": "0", "v": "u0" },
-          "step": { "v": "v - brakeRate * dt", "x": "x + v * dt" },
-          "outputs": { "stopX": "flagPosition + x" },
+          "constants": {
+            "u0": 22,
+            "brakeRate": 1.6,
+            "sidingEnd": 180
+          },
+          "state": {
+            "x": "0",
+            "v": "u0"
+          },
+          "step": {
+            "v": "v - brakeRate * dt",
+            "x": "x + v * dt"
+          },
+          "outputs": {
+            "stopX": "flagPosition + x"
+          },
           "win": "stopX <= sidingEnd && stopX >= sidingEnd - 12",
           "dt": 0.05,
           "maxTime": 40,
-          "until": "v <= 0"
+          "until": "v <= 0",
+          "visual": {
+            "kind": "timeline",
+            "x": "t",
+            "y": "flagPosition + x",
+            "xLabel": "time since the brakes bite (s)",
+            "yLabel": "distance down the grade (m)",
+            "band": {
+              "from": "sidingEnd - 12",
+              "to": "sidingEnd",
+              "axis": "y",
+              "label": "Move the marker and the whole curve slides — its shape never changes."
+            },
+            "markers": [
+              {
+                "value": "sidingEnd",
+                "label": "water tank",
+                "axis": "y"
+              }
+            ]
+          }
         },
-        "params": [{ "name": "flagPosition", "min": 0, "max": 60, "default": 5, "solution": 22 }]
+        "params": [
+          {
+            "name": "flagPosition",
+            "min": 0,
+            "max": 60,
+            "default": 5,
+            "solution": 22
+          }
+        ]
       }
     },
     {
@@ -112,18 +176,66 @@
       "mechanic": {
         "type": "formula",
         "spec": {
-          "constants": { "g": 9.81, "startY": 11, "ledgeNear": 24, "ledgeFar": 28 },
-          "state": { "x": "0", "y": "startY", "vx": "launchVx", "vy": "launchVy" },
-          "step": { "x": "x + vx * dt", "y": "y + vy * dt", "vy": "vy - g * dt" },
-          "outputs": { "landX": "x" },
+          "constants": {
+            "g": 9.81,
+            "startY": 11,
+            "ledgeNear": 24,
+            "ledgeFar": 28
+          },
+          "state": {
+            "x": "0",
+            "y": "startY",
+            "vx": "launchVx",
+            "vy": "launchVy"
+          },
+          "step": {
+            "x": "x + vx * dt",
+            "y": "y + vy * dt",
+            "vy": "vy - g * dt"
+          },
+          "outputs": {
+            "landX": "x"
+          },
           "win": "landX >= ledgeNear && landX <= ledgeFar",
           "dt": 0.02,
           "maxTime": 12,
-          "until": "y <= 0"
+          "until": "y <= 0",
+          "visual": {
+            "kind": "trajectory",
+            "x": "x",
+            "y": "y",
+            "xLabel": "distance across the gorge (m)",
+            "yLabel": "height (m)",
+            "band": {
+              "from": "ledgeNear",
+              "to": "ledgeFar",
+              "axis": "x",
+              "label": "Upward speed sets how long it flies; forward speed sets how far that time carries it."
+            },
+            "markers": [
+              {
+                "value": "0",
+                "label": "gorge floor",
+                "axis": "y"
+              }
+            ]
+          }
         },
         "params": [
-          { "name": "launchVx", "min": 2, "max": 24, "default": 4, "solution": 12 },
-          { "name": "launchVy", "min": 0, "max": 16, "default": 0, "solution": 5 }
+          {
+            "name": "launchVx",
+            "min": 2,
+            "max": 24,
+            "default": 4,
+            "solution": 12
+          },
+          {
+            "name": "launchVy",
+            "min": 0,
+            "max": 16,
+            "default": 0,
+            "solution": 5
+          }
         ]
       }
     }

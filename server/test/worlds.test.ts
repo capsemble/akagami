@@ -99,3 +99,71 @@ test('both traces keep their timings and their model chips', async () => {
     );
   }
 });
+
+test('every kinematics act can actually be drawn', async () => {
+  const { evaluate, simulate } = await import('@chapter-quest/shared');
+  const world = await loadWorld('world-ghat-9');
+
+  for (const act of world.acts) {
+    if (act.mechanic?.type !== 'formula') continue;
+    const { spec, params } = act.mechanic;
+    const visual = spec.visual;
+    assert.ok(visual, `${act.id} has no visual, so the panel would show numbers only`);
+    if (!visual) continue;
+
+    const dials = Object.fromEntries(params.map((p) => [p.name, p.solution]));
+    const run = simulate(spec, dials, { trace: true });
+    const scope = { ...spec.constants, ...dials, ...run.outputs };
+
+    // Markers and bands are measured against the finished run.
+    for (const marker of visual.markers ?? []) {
+      assert.ok(
+        Number.isFinite(evaluate(marker.value, scope)),
+        `${act.id} marker "${marker.label}" does not evaluate`,
+      );
+    }
+    if (visual.band) {
+      assert.ok(Number.isFinite(evaluate(visual.band.from, scope)), `${act.id} band.from`);
+      assert.ok(Number.isFinite(evaluate(visual.band.to, scope)), `${act.id} band.to`);
+    }
+
+    if (visual.kind === 'gauge') {
+      assert.ok(Number.isFinite(evaluate(visual.y, scope)), `${act.id} gauge value`);
+      continue;
+    }
+
+    // Plotted series are evaluated against each sample of the path.
+    assert.ok(run.samples.length > 5, `${act.id} traced only ${run.samples.length} samples`);
+    for (const sample of run.samples) {
+      assert.ok(Number.isFinite(evaluate(visual.x ?? 't', sample)), `${act.id} x expression`);
+      assert.ok(Number.isFinite(evaluate(visual.y, sample)), `${act.id} y expression`);
+    }
+  }
+});
+
+test('the winning run of each act ends inside its own target band', async () => {
+  const { evaluate, simulate } = await import('@chapter-quest/shared');
+  const world = await loadWorld('world-ghat-9');
+
+  for (const act of world.acts) {
+    if (act.mechanic?.type !== 'formula') continue;
+    const { spec, params } = act.mechanic;
+    const band = spec.visual?.band;
+    if (!band || spec.visual?.kind === 'gauge') continue;
+
+    const dials = Object.fromEntries(params.map((p) => [p.name, p.solution]));
+    const run = simulate(spec, dials, { trace: true });
+    const scope = { ...spec.constants, ...dials, ...run.outputs };
+    const last = run.samples[run.samples.length - 1]!;
+
+    const axis = band.axis ?? 'y';
+    const landed = evaluate(axis === 'x' ? (spec.visual!.x ?? 't') : spec.visual!.y, last);
+    const from = evaluate(band.from, scope);
+    const to = evaluate(band.to, scope);
+
+    assert.ok(
+      landed >= Math.min(from, to) && landed <= Math.max(from, to),
+      `${act.id} wins but the plot ends at ${landed.toFixed(2)}, outside the drawn band ${from}..${to}`,
+    );
+  }
+});

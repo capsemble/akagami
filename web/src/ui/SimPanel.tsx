@@ -1,5 +1,6 @@
 import type { Act } from '@chapter-quest/shared';
 import type { FormulaMechanic, SimOutcome } from '../api/sim';
+import { SimTrace } from './SimTrace';
 import { colors, fonts, radii, space } from './tokens';
 
 interface Props {
@@ -83,6 +84,15 @@ export function SimPanel({
           <h3 style={{ ...styles.h3, color: outcome.won ? colors.success : colors.fail }}>
             {outcome.won ? 'It lands.' : 'Not yet.'}
           </h3>
+
+          {mechanic.spec.visual ? (
+            <SimTrace
+              visual={mechanic.spec.visual}
+              samples={outcome.samples}
+              scope={{ ...mechanic.spec.constants, ...dials, ...outcome.outputs }}
+              won={outcome.won}
+            />
+          ) : null}
           <ul style={styles.outputs}>
             {Object.entries(outcome.outputs).map(([name, value]) => (
               <li key={name} style={styles.output}>

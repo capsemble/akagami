@@ -270,7 +270,22 @@ export interface SimResult {
   state: Record<string, number>;
   steps: number;
   time: number;
+  /**
+   * The path the run took: one sample per recorded step, each holding every
+   * constant, param and state value at that moment plus `t`. Empty unless
+   * `trace` was asked for — recording costs an object per sample.
+   */
+  samples: SimSample[];
 }
+
+export type SimSample = Record<string, number>;
+
+export interface SimOptions {
+  /** Record the path. Roughly this many samples, evenly spaced. */
+  trace?: number | boolean;
+}
+
+const DEFAULT_TRACE_SAMPLES = 180;
 
 /** A spec that integrates forever is a bug, not a long simulation. */
 const MAX_STEPS = 2_000_000;
@@ -284,7 +299,11 @@ const MAX_STEPS = 2_000_000;
  * the physics. Outputs are evaluated after the run, in order, and each is
  * visible to the next and to `win`.
  */
-export function simulate(spec: SimSpec, params: Record<string, number>): SimResult {
+export function simulate(
+  spec: SimSpec,
+  params: Record<string, number>,
+  options: SimOptions = {},
+): SimResult {
   const scope: ExprScope = { ...spec.constants, ...params };
 
   for (const [name, source] of Object.entries(spec.state)) {
@@ -300,6 +319,23 @@ export function simulate(spec: SimSpec, params: Record<string, number>): SimResu
     throw new Error(`simulate: ${limit} steps requested (maxTime ${spec.maxTime} / dt ${spec.dt})`);
   }
 
+  const wanted =
+    options.trace === true
+      ? DEFAULT_TRACE_SAMPLES
+      : typeof options.trace === 'number'
+        ? options.trace
+        : 0;
+  const samples: SimSample[] = [];
+  const every = wanted > 0 ? Math.max(1, Math.floor(limit / wanted) || 1) : 0;
+  const snapshot = (t: number) => {
+    const sample: SimSample = { t };
+    for (const [key, value] of Object.entries(scope)) {
+      if (typeof value === 'number') sample[key] = value;
+    }
+    samples.push(sample);
+  };
+  if (wanted > 0) snapshot(0);
+
   const next = new Array<number>(steps.length);
   let taken = 0;
   for (; taken < limit; taken++) {
@@ -312,6 +348,7 @@ export function simulate(spec: SimSpec, params: Record<string, number>): SimResu
       }
       scope[steps[i]![0]] = value;
     }
+    if (wanted > 0 && (taken % every === 0 || taken === limit - 1)) snapshot((taken + 1) * spec.dt);
   }
 
   const outputs: Record<string, number> = {};
@@ -324,12 +361,19 @@ export function simulate(spec: SimSpec, params: Record<string, number>): SimResu
   const state: Record<string, number> = {};
   for (const name of Object.keys(spec.state)) state[name] = scope[name] as number;
 
+  // The last sample carries the outputs too, so a plot can mark where it ended.
+  if (wanted > 0) {
+    samples.pop();
+    snapshot(taken * spec.dt);
+  }
+
   return {
     won: evaluate(spec.win, scope) !== 0,
     outputs,
     state,
     steps: taken,
     time: taken * spec.dt,
+    samples,
   };
 }
 

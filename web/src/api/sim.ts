@@ -1,15 +1,21 @@
-import type { Mechanic, SimSpec } from '@chapter-quest/shared';
+import type { Mechanic, SimSample, SimSpec } from '@chapter-quest/shared';
 import * as shared from '@chapter-quest/shared';
 
 export interface SimOutcome {
   won: boolean;
   outputs: Record<string, number>;
+  /** The path the run took, for the plot. */
+  samples: SimSample[];
 }
 
 export type FormulaMechanic = Extract<Mechanic, { type: 'formula' }>;
 
 interface EvaluatorApi {
-  simulate(spec: SimSpec, params: Record<string, number>): SimOutcome;
+  simulate(
+    spec: SimSpec,
+    params: Record<string, number>,
+    options?: { trace?: boolean | number },
+  ): SimOutcome;
 }
 
 /**
@@ -31,7 +37,8 @@ export function runSim(
 ): SimOutcome | null {
   const api = evaluator();
   if (!api) return null;
-  return api.simulate(mechanic.spec, dials);
+  // Trace on: the plot is the point, the number is the footnote.
+  return api.simulate(mechanic.spec, dials, { trace: true });
 }
 
 /** Where every dial starts: the act must begin unsolved. */

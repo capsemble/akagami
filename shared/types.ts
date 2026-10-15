@@ -217,6 +217,26 @@ export interface SceneSpec {
  * tested expr.ts uses a different SimSpec, change it here and in
  * server/src/schemas.ts (SIM_SPEC_SCHEMA) — those are the only two places.
  */
+/**
+ * How to draw a run so the concept is visible rather than merely numeric.
+ * Every field is an expression evaluated against the simulation, so a plot can
+ * reference params, constants, state and outputs by name.
+ */
+export interface SimVisual {
+  /** trajectory = y against x; timeline = y against time; gauge = one value on a scale. */
+  kind: 'trajectory' | 'timeline' | 'gauge';
+  /** Per-sample expression for the x axis. Defaults to 't' (seconds). */
+  x?: string;
+  /** Per-sample expression for the y axis, or the single value for a gauge. */
+  y: string;
+  xLabel?: string;
+  yLabel?: string;
+  /** The band you are aiming for, as expressions over constants and outputs. */
+  band?: { from: string; to: string; label?: string; axis?: 'x' | 'y' };
+  /** Reference lines, e.g. where the siding ends. */
+  markers?: { value: string; label: string; axis?: 'x' | 'y' }[];
+}
+
 export interface SimSpec {
   /** Fixed values, e.g. { g: 9.81 }. */
   constants: Record<string, number>;
@@ -234,6 +254,8 @@ export interface SimSpec {
   maxTime: number;
   /** Optional boolean expression that ends the run early, e.g. 'v <= 0'. */
   until?: string;
+  /** How a run is drawn. Absent means numbers only. */
+  visual?: SimVisual;
 }
 
 export interface ParamSpec {
