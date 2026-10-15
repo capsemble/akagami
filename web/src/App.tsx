@@ -8,12 +8,15 @@ import type {
   World,
 } from '@chapter-quest/shared';
 import { API_MODE, api } from './api';
+import { SIM_AVAILABLE, defaultDials, runSim } from './api/sim';
+import type { FormulaMechanic, SimOutcome } from './api/sim';
 import { gameBus } from './game/bus';
 import { PhaserGame } from './game/PhaserGame';
 import { AgentTracePanel } from './ui/AgentTracePanel';
 import { DioramaSlot } from './ui/DioramaSlot';
 import { DialogBox } from './ui/DialogBox';
 import { RagPanel } from './ui/RagPanel';
+import { SimPanel } from './ui/SimPanel';
 import { UploadPage } from './ui/UploadPage';
 import { colors, fonts, radii, space } from './ui/tokens';
 
@@ -41,7 +44,12 @@ export default function App() {
   const [ragResult, setRagResult] = useState<RagRunResponse | null>(null);
   const [ragBusy, setRagBusy] = useState(false);
 
+  const [simOpen, setSimOpen] = useState(false);
+  const [dials, setDials] = useState<Record<string, number>>({});
+  const [simOutcome, setSimOutcome] = useState<SimOutcome | null>(null);
+
   const act: Act | null = world?.acts[actIndex] ?? null;
+  const formula: FormulaMechanic | null = act?.mechanic?.type === 'formula' ? act.mechanic : null;
   const formingDone = useMemo(
     () => events.some((e) => e.agent === 'Orchestrator' && e.kind === 'done'),
     [events],
@@ -80,6 +88,12 @@ export default function App() {
       .catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [worldReady, worldId, world]);
 
+  // Each act starts unsolved, at its declared default dial positions.
+  useEffect(() => {
+    setSimOutcome(null);
+    setDials(formula ? defaultDials(formula) : {});
+  }, [formula]);
+
   // --- the scene for the current act --------------------------------------
   useEffect(() => {
     if (!world || !act) return;
@@ -100,7 +114,10 @@ export default function App() {
       const typing = e.target instanceof HTMLElement && /input|textarea/i.test(e.target.tagName);
       if (typing) return;
       if (e.key === 't' || e.key === 'T') setTraceOpen((open) => !open);
-      if (e.key === 'Escape') setRagOpen(false);
+      if (e.key === 'Escape') {
+        setRagOpen(false);
+        setSimOpen(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -109,6 +126,10 @@ export default function App() {
   // --- Phaser → React -----------------------------------------------------
   useEffect(() => {
     return gameBus.on('interact', ({ id }) => {
+      if (act?.mechanic?.type === 'formula') {
+        setSimOpen(true);
+        return;
+      }
       if (id === 'satchel') {
         setRagOpen(true);
         return;
@@ -137,6 +158,11 @@ export default function App() {
       setRagBusy(false);
     }
   }, [world, act, ragParams]);
+
+  const handleRunSim = useCallback(() => {
+    if (!formula) return;
+    setSimOutcome(runSim(formula, dials));
+  }, [formula, dials]);
 
   if (phase === 'upload') {
     return <UploadPage busy={busy} error={error} onSubmit={handleSubmit} />;
@@ -172,7 +198,7 @@ export default function App() {
   return (
     <div style={styles.stage}>
       {scene ? (
-        <PhaserGame scene={scene} paused={ragOpen || dialog !== null} />
+        <PhaserGame scene={scene} paused={ragOpen || simOpen || dialog !== null} />
       ) : (
         <p style={styles.loading}>painting the scene…</p>
       )}
@@ -205,6 +231,21 @@ export default function App() {
       {traceOpen ? (
         <div style={styles.traceSlot}>
           <AgentTracePanel events={events} open onClose={() => setTraceOpen(false)} />
+        </div>
+      ) : null}
+
+      {simOpen && formula && act ? (
+        <div style={styles.overlay}>
+          <SimPanel
+            act={act}
+            mechanic={formula}
+            dials={dials}
+            outcome={simOutcome}
+            available={SIM_AVAILABLE}
+            onChange={setDials}
+            onRun={handleRunSim}
+            onClose={() => setSimOpen(false)}
+          />
         </div>
       ) : null}
 

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1450" height="725" viewBox="0 0 1450 725">
+<rect width="1450" height="725" fill="#140d08"/>
+<polygon points="450.0,0.0 1450.0,500.0 1000.0,725.0 0.0,225.0" fill="#1f140d"/>
+<g stroke="#2d1e12" stroke-width="1.5" opacity="0.65">
+<line x1="450.0" y1="0.0" x2="0.0" y2="225.0"/>
+<line x1="550.0" y1="50.0" x2="100.0" y2="275.0"/>
+<line x1="650.0" y1="100.0" x2="200.0" y2="325.0"/>
+<line x1="750.0" y1="150.0" x2="300.0" y2="375.0"/>
+<line x1="850.0" y1="200.0" x2="400.0" y2="425.0"/>
+<line x1="950.0" y1="250.0" x2="500.0" y2="475.0"/>
+<line x1="1050.0" y1="300.0" x2="600.0" y2="525.0"/>
+<line x1="1150.0" y1="350.0" x2="700.0" y2="575.0"/>
+<line x1="1250.0" y1="400.0" x2="800.0" y2="625.0"/>
+<line x1="1350.0" y1="450.0" x2="900.0" y2="675.0"/>
+<line x1="1450.0" y1="500.0" x2="1000.0" y2="725.0"/>
+<line x1="450.0" y1="0.0" x2="1450.0" y2="500.0"/>
+<line x1="350.0" y1="50.0" x2="1350.0" y2="550.0"/>
+<line x1="250.0" y1="100.0" x2="1250.0" y2="600.0"/>
+<line x1="150.0" y1="150.0" x2="1150.0" y2="650.0"/>
+<line x1="50.0" y1="200.0" x2="1050.0" y2="700.0"/>
+</g>
+<polygon points="270.0,110.0 300.0,125.0 220.0,165.0 190.0,150.0" fill="#2c4a8a" opacity="0.8"/>
+<text x="245" y="138" fill="#f4ecd8" font-family="monospace" font-size="16" text-anchor="middle">exit</text>
+<polygon points="425.0,222.5 485.0,252.5 425.0,282.5 365.0,252.5" fill="#d9a441" opacity="0.22"/>
+<polygon points="1150.0,500.0 1250.0,550.0 1150.0,600.0 1050.0,550.0" fill="#d9a441" opacity="0.22"/>
+<ellipse cx="460" cy="315" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
+<text x="460" y="349" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">rane</text>
+<ellipse cx="690" cy="370" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
+<text x="690" y="404" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">dalvi</text>
+<ellipse cx="280" cy="235" rx="12" ry="6" fill="#3f7f2e"/>
+<text x="24" y="40" fill="#f4ecd8" font-family="monospace" font-size="26" opacity="0.8">Falling Grade — isometric placeholder</text>
+</svg>

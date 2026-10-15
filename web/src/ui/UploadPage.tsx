@@ -108,7 +108,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.ground,
     fontWeight: 700,
   },
+  demos: { display: 'flex', gap: space.sm },
   ghost: {
+    flex: 1,
     padding: space.sm,
     borderRadius: radii.chip,
     border: `1px solid ${colors.parchment}33`,

@@ -9,6 +9,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isoDiamond, isoProject, isoView } from '../shared/dist/iso.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'web/public/mock-art');
@@ -104,12 +105,91 @@ function sceneSvg(scene, label) {
   return parts.join('\n');
 }
 
+/**
+ * Isometric scenes get a floor only. The props are extruded from the collider
+ * rects by WorldScene at runtime, so they cannot drift from the physics.
+ */
+function isoSceneSvg(scene, label) {
+  const view = isoView(scene.width, scene.height);
+  const w = Math.round(view.width);
+  const h = Math.round(view.height);
+  const parts = [];
+  const pt = (x, y) => {
+    const p = isoProject(x, y, view);
+    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+  };
+  const poly = (rect) =>
+    isoDiamond(rect, view)
+      .map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+      .join(' ');
+
+  parts.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`,
+  );
+  parts.push(`<rect width="${w}" height="${h}" fill="#140d08"/>`);
+
+  // The ground plane as one big diamond.
+  parts.push(
+    `<polygon points="${poly({ x: 0, y: 0, w: scene.width, h: scene.height })}" fill="${C.ground}"/>`,
+  );
+
+  // Tile grid, so distance is readable while walking.
+  const tile = 200;
+  parts.push('<g stroke="#2d1e12" stroke-width="1.5" opacity="0.65">');
+  for (let x = 0; x <= scene.width; x += tile) {
+    parts.push(
+      `<line x1="${pt(x, 0).split(',')[0]}" y1="${pt(x, 0).split(',')[1]}" x2="${pt(x, scene.height).split(',')[0]}" y2="${pt(x, scene.height).split(',')[1]}"/>`,
+    );
+  }
+  for (let y = 0; y <= scene.height; y += tile) {
+    parts.push(
+      `<line x1="${pt(0, y).split(',')[0]}" y1="${pt(0, y).split(',')[1]}" x2="${pt(scene.width, y).split(',')[0]}" y2="${pt(scene.width, y).split(',')[1]}"/>`,
+    );
+  }
+  parts.push('</g>');
+
+  for (const e of scene.exits) {
+    parts.push(`<polygon points="${poly(e)}" fill="${C.lapis}" opacity="0.8"/>`);
+    const c = isoProject(e.x + e.w / 2, e.y + e.h / 2, view);
+    parts.push(
+      `<text x="${c.x.toFixed(0)}" y="${c.y.toFixed(0)}" fill="${C.parchment}" font-family="monospace" font-size="16" text-anchor="middle">exit</text>`,
+    );
+  }
+
+  // Footprint tints only — the solid is drawn at runtime.
+  for (const it of scene.interactables) {
+    parts.push(`<polygon points="${poly(it)}" fill="${C.gold}" opacity="0.22"/>`);
+  }
+
+  for (const [id, p] of Object.entries(scene.npcSpots)) {
+    const c = isoProject(p.x, p.y, view);
+    const fill = id === 'oracle' ? C.oracle : C.parchment;
+    parts.push(
+      `<ellipse cx="${c.x.toFixed(0)}" cy="${c.y.toFixed(0)}" rx="30" ry="15" fill="${fill}" opacity="0.3"/>`,
+    );
+    parts.push(
+      `<text x="${c.x.toFixed(0)}" y="${(c.y + 34).toFixed(0)}" fill="${fill}" font-family="monospace" font-size="17" text-anchor="middle">${esc(id)}</text>`,
+    );
+  }
+
+  const s = isoProject(scene.spawn.x, scene.spawn.y, view);
+  parts.push(
+    `<ellipse cx="${s.x.toFixed(0)}" cy="${s.y.toFixed(0)}" rx="12" ry="6" fill="${C.success}"/>`,
+  );
+  parts.push(
+    `<text x="24" y="40" fill="${C.parchment}" font-family="monospace" font-size="26" opacity="0.8">${esc(label)} — isometric placeholder</text>`,
+  );
+  parts.push('</svg>');
+  return parts.join('\n');
+}
+
 function portraitSvg(name, mood) {
   const tint = { neutral: C.parchment, pleased: C.gold, worried: C.fail }[mood];
   const isOracle = name === 'oracle';
+  const body = { rane: '#4a5240', dalvi: '#2f3a52' }[name] ?? (isOracle ? C.lapis : '#3a2514');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <rect width="256" height="256" fill="${C.ground}"/>
-  <circle cx="128" cy="150" r="96" fill="${isOracle ? C.lapis : '#3a2514'}"/>
+  <circle cx="128" cy="150" r="96" fill="${body}"/>
   <circle cx="128" cy="104" r="52" fill="${isOracle ? C.oracle : '#c9a37a'}" opacity="${isOracle ? 0.8 : 1}"/>
   <rect x="34" y="34" width="188" height="188" fill="none" stroke="${tint}" stroke-width="6" rx="12"/>
   <text x="128" y="238" fill="${tint}" font-family="monospace" font-size="20" text-anchor="middle">${name}/${mood}</text>
@@ -131,14 +211,19 @@ const labels = {
   'scene-scriptorium': 'The Scriptorium',
   'scene-stacks': 'The Stacks',
   'scene-sanctum': 'Sanctum of the Blue Flame',
+  'scene-signal-box': 'Ghat 9 Signal Box',
+  'scene-falling-grade': 'Falling Grade',
+  'scene-gorge': 'Gorge Crossing',
 };
 for (const file of readdirSync(sceneDir).filter((f) => f.endsWith('.json'))) {
   const scene = JSON.parse(readFileSync(join(sceneDir, file), 'utf8'));
-  writeFileSync(join(outDir, `${scene.id}.svg`), sceneSvg(scene, labels[scene.id] ?? scene.id));
-  console.log('scene  ', `${scene.id}.svg`);
+  const label = labels[scene.id] ?? scene.id;
+  const svg = scene.projection === 'isometric' ? isoSceneSvg(scene, label) : sceneSvg(scene, label);
+  writeFileSync(join(outDir, `${scene.id}.svg`), svg);
+  console.log(`scene   ${scene.id}.svg  (${scene.projection ?? 'topdown'})`);
 }
 
-for (const name of ['archivist', 'oracle']) {
+for (const name of ['archivist', 'oracle', 'rane', 'dalvi']) {
   for (const mood of ['neutral', 'pleased', 'worried']) {
     writeFileSync(join(portraitDir, `${name}-${mood}.svg`), portraitSvg(name, mood));
   }
@@ -150,5 +235,10 @@ writeFileSync(
   spriteSvg('The Archivist', '#4a2f18', C.parchment),
 );
 writeFileSync(join(outDir, 'sprite-oracle.svg'), spriteSvg('The Oracle', C.lapis, C.oracle));
+writeFileSync(join(outDir, 'sprite-rane.svg'), spriteSvg('Inspector Rane', '#4a5240', '#c9a37a'));
+writeFileSync(
+  join(outDir, 'sprite-dalvi.svg'),
+  spriteSvg('Station Master Dalvi', '#2f3a52', '#c9a37a'),
+);
 writeFileSync(join(outDir, 'player.svg'), spriteSvg('Player', C.gold, C.parchment));
-console.log('sprites  archivist, oracle, player');
+console.log('sprites  archivist, oracle, rane, dalvi, player');

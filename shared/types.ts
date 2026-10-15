@@ -16,6 +16,8 @@ export interface Rect {
   y: number;
   w: number;
   h: number;
+  /** Extrusion height for isometric rendering. Ignored in top-down scenes. */
+  height?: number;
 }
 
 export interface World {
@@ -56,13 +58,20 @@ export interface Act {
   sceneId: string;
   prediction?: Prediction;
   explainAfter: string;
+  /** How the act is actually played. Absent on acts that are dialogue only. */
+  mechanic?: Mechanic;
 }
 
 export interface Scene {
   id: string;
   imageUrl: string;
+  /** Size of the flat world plane the colliders live on. */
   width: number;
   height: number;
+  /** How the plane is drawn. Absent means 'topdown', as before. */
+  projection?: 'topdown' | 'isometric';
+  /** Pixel size of the projected background. Absent means width x height. */
+  view?: { width: number; height: number };
   blocked: Rect[];
   interactables: (Rect & { id: string })[];
   exits: Rect[];

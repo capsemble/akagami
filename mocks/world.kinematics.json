@@ -1,0 +1,131 @@
+{
+  "id": "world-ghat-9",
+  "title": "The Ghost of Ghat 9",
+  "logline": "A bandit robs the monsoon mail train at a bend nobody can reach in time — unless the timetable itself is lying.",
+  "artStyle": "Isometric 1950s hill railway: wet slate, rust and teak, lantern light through rain, muted teal and ochre, 2:1 dimetric.",
+  "status": "ready",
+  "cast": [
+    {
+      "id": "rane",
+      "name": "Inspector Rane",
+      "persona": "Soaked khaki and a notebook with swollen pages. Patient to the point of rudeness, asks the obvious question twice, and writes down the answer both times.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/rane-neutral.svg",
+        "pleased": "/mock-art/portraits/rane-pleased.svg",
+        "worried": "/mock-art/portraits/rane-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-rane.svg"
+    },
+    {
+      "id": "dalvi",
+      "name": "Station Master Dalvi",
+      "persona": "Brass buttons and an umbrella he never opens. Helpful to a fault, quotes the timetable as scripture, and cannot see that an average over a route says nothing about any single moment of it.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/dalvi-neutral.svg",
+        "pleased": "/mock-art/portraits/dalvi-pleased.svg",
+        "worried": "/mock-art/portraits/dalvi-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-dalvi.svg"
+    }
+  ],
+  "acts": [
+    {
+      "id": "act1",
+      "conceptId": "average-speed",
+      "title": "The Alibi",
+      "goal": "Dalvi's timings put the guard 6 km up the ghat in 10 minutes. Set the deduction board to the speed that implies, and show him it cannot be walked.",
+      "verbs": ["deduction", "interrogate"],
+      "sceneId": "scene-signal-box",
+      "prediction": {
+        "question": "Dalvi says the guard walked 6 km up the ghat in 10 minutes. Before you compute anything — is that possible?",
+        "options": [
+          "Yes, uphill is slow but 6 km is a short distance",
+          "No, that implies a speed no one walks",
+          "Only if he ran the whole way"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "Average speed is total distance over total time, and it does not care how the walk felt. 6 km in 10 minutes is 36 km/h. A person tops out near 25 km/h on flat ground for seconds at a time, so it is the timing that is wrong, not the walker. This is why an average is evidence: it can be impossible.",
+      "mechanic": {
+        "type": "formula",
+        "spec": {
+          "constants": { "distanceKm": 6, "timeMin": 10, "walkMaxKmh": 25 },
+          "state": {},
+          "step": {},
+          "outputs": { "impliedSpeed": "distanceKm * 60 / timeMin" },
+          "win": "claimedSpeed >= impliedSpeed - 1 && claimedSpeed <= impliedSpeed + 1 && impliedSpeed > walkMaxKmh",
+          "dt": 1,
+          "maxTime": 0
+        },
+        "params": [{ "name": "claimedSpeed", "min": 0, "max": 60, "default": 6, "solution": 36 }]
+      }
+    },
+    {
+      "id": "act2",
+      "conceptId": "braking-distance",
+      "title": "The Runaway",
+      "goal": "Plant the brake marker up the grade, then drive the goods train down and let it stop inside the siding — not through the water tank.",
+      "verbs": ["plant_marker", "drive"],
+      "sceneId": "scene-falling-grade",
+      "prediction": {
+        "question": "You move the marker 10 m further down the grade. The stopping distance…",
+        "options": [
+          "Shrinks — braking starts later so there is less left to lose",
+          "Stays the same — the brakes do not know where they are",
+          "Grows — the train has longer to pick up speed"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "Once the brakes bite, the distance to stop depends on how fast you were going and how hard you can brake — not on where you started braking. Moving the marker moves the whole stop; it does not shorten it. That is v² = u² + 2as read backwards: double the speed and you quadruple the distance.",
+      "mechanic": {
+        "type": "formula",
+        "spec": {
+          "constants": { "u0": 22, "brakeRate": 1.6, "sidingEnd": 180 },
+          "state": { "x": "0", "v": "u0" },
+          "step": { "v": "v - brakeRate * dt", "x": "x + v * dt" },
+          "outputs": { "stopX": "flagPosition + x" },
+          "win": "stopX <= sidingEnd && stopX >= sidingEnd - 12",
+          "dt": 0.05,
+          "maxTime": 40,
+          "until": "v <= 0"
+        },
+        "params": [{ "name": "flagPosition", "min": 0, "max": 60, "default": 5, "solution": 22 }]
+      }
+    },
+    {
+      "id": "act3",
+      "conceptId": "projectile-motion",
+      "title": "The Zipline",
+      "goal": "Aim the satchel launcher across the gorge and fire, so the mail lands on the far ledge before the bandit reaches it.",
+      "verbs": ["aim_launch"],
+      "sceneId": "scene-gorge",
+      "prediction": {
+        "question": "You double the forward speed and keep the upward speed the same. The satchel…",
+        "options": [
+          "Stays in the air twice as long",
+          "Lands twice as far, in the same flight time",
+          "Lands twice as far and twice as late"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "Horizontal and vertical motion do not talk to each other. Gravity only ever works on the vertical, so the time in the air is set by the upward speed and the drop — and the forward speed just decides how much ground that time buys you. Height buys seconds; speed spends them.",
+      "mechanic": {
+        "type": "formula",
+        "spec": {
+          "constants": { "g": 9.81, "startY": 11, "ledgeNear": 24, "ledgeFar": 28 },
+          "state": { "x": "0", "y": "startY", "vx": "launchVx", "vy": "launchVy" },
+          "step": { "x": "x + vx * dt", "y": "y + vy * dt", "vy": "vy - g * dt" },
+          "outputs": { "landX": "x" },
+          "win": "landX >= ledgeNear && landX <= ledgeFar",
+          "dt": 0.02,
+          "maxTime": 12,
+          "until": "y <= 0"
+        },
+        "params": [
+          { "name": "launchVx", "min": 2, "max": 24, "default": 4, "solution": 12 },
+          { "name": "launchVy", "min": 0, "max": 16, "default": 0, "solution": 5 }
+        ]
+      }
+    }
+  ]
+}

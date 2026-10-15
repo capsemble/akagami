@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#1f140d"/>
+  <circle cx="128" cy="150" r="96" fill="#4a5240"/>
+  <circle cx="128" cy="104" r="52" fill="#c9a37a" opacity="1"/>
+  <rect x="34" y="34" width="188" height="188" fill="none" stroke="#d9a441" stroke-width="6" rx="12"/>
+  <text x="128" y="238" fill="#d9a441" font-family="monospace" font-size="20" text-anchor="middle">rane/pleased</text>
+</svg>

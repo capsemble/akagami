@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="700" viewBox="0 0 1400 700">
+<rect width="1400" height="700" fill="#140d08"/>
+<polygon points="600.0,0.0 1400.0,400.0 800.0,700.0 0.0,300.0" fill="#1f140d"/>
+<g stroke="#2d1e12" stroke-width="1.5" opacity="0.65">
+<line x1="600.0" y1="0.0" x2="0.0" y2="300.0"/>
+<line x1="700.0" y1="50.0" x2="100.0" y2="350.0"/>
+<line x1="800.0" y1="100.0" x2="200.0" y2="400.0"/>
+<line x1="900.0" y1="150.0" x2="300.0" y2="450.0"/>
+<line x1="1000.0" y1="200.0" x2="400.0" y2="500.0"/>
+<line x1="1100.0" y1="250.0" x2="500.0" y2="550.0"/>
+<line x1="1200.0" y1="300.0" x2="600.0" y2="600.0"/>
+<line x1="1300.0" y1="350.0" x2="700.0" y2="650.0"/>
+<line x1="1400.0" y1="400.0" x2="800.0" y2="700.0"/>
+<line x1="600.0" y1="0.0" x2="1400.0" y2="400.0"/>
+<line x1="500.0" y1="50.0" x2="1300.0" y2="450.0"/>
+<line x1="400.0" y1="100.0" x2="1200.0" y2="500.0"/>
+<line x1="300.0" y1="150.0" x2="1100.0" y2="550.0"/>
+<line x1="200.0" y1="200.0" x2="1000.0" y2="600.0"/>
+<line x1="100.0" y1="250.0" x2="900.0" y2="650.0"/>
+<line x1="0.0" y1="300.0" x2="800.0" y2="700.0"/>
+</g>
+<polygon points="410.0,455.0 490.0,495.0 460.0,510.0 380.0,470.0" fill="#2c4a8a" opacity="0.8"/>
+<text x="435" y="483" fill="#f4ecd8" font-family="monospace" font-size="16" text-anchor="middle">exit</text>
+<polygon points="600.0,350.0 700.0,400.0 630.0,435.0 530.0,385.0" fill="#d9a441" opacity="0.22"/>
+<polygon points="870.0,195.0 1010.0,265.0 950.0,295.0 810.0,225.0" fill="#d9a441" opacity="0.22"/>
+<ellipse cx="490" cy="335" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
+<text x="490" y="369" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">rane</text>
+<ellipse cx="730" cy="455" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
+<text x="730" y="489" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">dalvi</text>
+<ellipse cx="520" cy="440" rx="12" ry="6" fill="#3f7f2e"/>
+<text x="24" y="40" fill="#f4ecd8" font-family="monospace" font-size="26" opacity="0.8">Gorge Crossing — isometric placeholder</text>
+</svg>

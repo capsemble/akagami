@@ -8,18 +8,26 @@ import type {
   TeachingMove,
   World,
 } from '@chapter-quest/shared';
-import worldJson from '@mocks/world.rag.json';
+import ragWorldJson from '@mocks/world.rag.json';
+import kinematicsWorldJson from '@mocks/world.kinematics.json';
 import scriptorium from '@mocks/scenes/scene-scriptorium.json';
 import stacks from '@mocks/scenes/scene-stacks.json';
 import sanctum from '@mocks/scenes/scene-sanctum.json';
+import signalBox from '@mocks/scenes/scene-signal-box.json';
+import fallingGrade from '@mocks/scenes/scene-falling-grade.json';
+import gorge from '@mocks/scenes/scene-gorge.json';
 import ragJson from '@mocks/rag.json';
 import eventsJson from '@mocks/agent-events.json';
 import npcJson from '@mocks/npc.json';
 import teachingJson from '@mocks/teaching-move.json';
 import type { AdaptRequest, ApiClient, NpcTurnRequest } from './types';
 
-const world = worldJson as unknown as World;
-const scenes = [scriptorium, stacks, sanctum] as unknown as Scene[];
+const worlds = [kinematicsWorldJson, ragWorldJson] as unknown as World[];
+/** The demo opens on kinematics: the physics is the easiest thing to see move. */
+const defaultWorld = worlds[0] as World;
+const scenes = [signalBox, fallingGrade, gorge, scriptorium, stacks, sanctum] as unknown as Scene[];
+
+const worldById = (id: string): World => worlds.find((w) => w.id === id) ?? defaultWorld;
 const ragTable = ragJson as unknown as Record<string, RagRunResponse>;
 const events = eventsJson as unknown as AgentEvent[];
 
@@ -43,11 +51,14 @@ export const mockApi: ApiClient = {
   async createWorld(input) {
     const label = typeof input === 'string' ? `${input.length} chars` : input.name;
     console.info('[mock] createWorld', label);
-    return delay({ id: world.id });
+    // "demo:rag" from the upload screen picks the RAG world; anything else is kinematics.
+    const wanted =
+      typeof input === 'string' && input.includes('rag') ? 'world-oracle-library' : defaultWorld.id;
+    return delay({ id: worldById(wanted).id });
   },
 
-  getWorld(_id) {
-    return delay(world);
+  getWorld(id) {
+    return delay(worldById(id));
   },
 
   async getScene(_worldId, sceneId) {
