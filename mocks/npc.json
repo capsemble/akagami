@@ -1,0 +1,7 @@
+{
+  "reply": "You handed me three scrolls and two of them stop mid-sentence. I said \"forty milligrams\" because the piece I was given ends at \"forty\" — the unit was torn off and left on the table behind you. Ask me again once the cut stops falling through the middle of a fact.",
+  "mood": "worried",
+  "understanding": 0.45,
+  "misconception": "Believes smaller chunks are always more precise, and does not yet see that a chunk smaller than a fact cannot carry that fact at all.",
+  "unlock": false
+}

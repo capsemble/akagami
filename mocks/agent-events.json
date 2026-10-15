@@ -1,0 +1,114 @@
+[
+  {
+    "ts": 0,
+    "agent": "Orchestrator",
+    "kind": "start",
+    "message": "Chapter received: \"Retrieval-Augmented Generation\" — 11,420 words, 3 figures.",
+    "model": "gemini-3.8-flash"
+  },
+  {
+    "ts": 900,
+    "agent": "Curriculum agent",
+    "kind": "progress",
+    "message": "Curriculum agent (Gemini 4 Argon): reading chapter. Splitting into teachable units…",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 2600,
+    "agent": "Curriculum agent",
+    "kind": "done",
+    "message": "Curriculum agent (Gemini 4 Argon): found 5 concepts, 9 misconceptions. Top misconception: \"smaller chunks are always more precise\".",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 3400,
+    "agent": "Story agent",
+    "kind": "progress",
+    "message": "Writers' room (Gemini 4 Argon): 2 drafts written; judge kept draft B (13/15).",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 5200,
+    "agent": "Story agent",
+    "kind": "done",
+    "message": "Story agent (Gemini 4 Argon): world is \"The Oracle of the Old Library\". The Oracle is the model, the scrolls are the documents, the satchel is top-k.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 6100,
+    "agent": "Mechanic agent",
+    "kind": "progress",
+    "message": "Binding concepts to verbs: chunking → tune the cut, top-k → fill the satchel, grounding → interrogate.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 7800,
+    "agent": "Validator",
+    "kind": "rejected",
+    "message": "Validator (Gemini 4 Argon): rejected Act II (guessable, 64%). A player can win without touching overlap. Repairing…",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 9300,
+    "agent": "Mechanic agent",
+    "kind": "repair",
+    "message": "Act II rewritten: the gold fact now straddles the cut, so overlap is the only way through.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 10700,
+    "agent": "Validator",
+    "kind": "done",
+    "message": "Re-scored: Act II guessable 31%, concept-necessary. 3 of 5 acts kept for the prototype.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 11600,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): style locked — candlelit oak, parchment, gold rim light. Painting scene 1/3 — the Scriptorium.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 13400,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): painting scene 2/3 — the Stacks.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 15100,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): painting scene 3/3 — the Sanctum of the Blue Flame.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 16800,
+    "agent": "Cast agent",
+    "kind": "done",
+    "message": "Cast sheet: The Archivist (3 moods), The Oracle (3 moods). Portraits kept on-model via reference images.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 18200,
+    "agent": "Mapper",
+    "kind": "progress",
+    "message": "Scene QA (Gemini Flash): tracing colliders from scene art — 11 blocked rects, 2 interactables, 1 exit per scene.",
+    "model": "gemini-3.5-flash-lite"
+  },
+  {
+    "ts": 19900,
+    "agent": "Mapper",
+    "kind": "done",
+    "message": "Scene QA (Gemini Flash): colliders mapped. Spawn reaches every interactable and exit.",
+    "model": "gemini-3.5-flash-lite"
+  },
+  {
+    "ts": 21000,
+    "agent": "Orchestrator",
+    "kind": "done",
+    "message": "World ready. 3 acts, 3 scenes, 2 characters. Step into the Scriptorium.",
+    "model": "gemini-3.8-flash"
+  }
+]

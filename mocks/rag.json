@@ -1,0 +1,241 @@
+{
+  "40-0-3-false": {
+    "retrieved": [
+      {
+        "id": "s12#4",
+        "text": "...and on the third night the Archivist recorded a dose of forty",
+        "score": 0.81,
+        "gold": true
+      },
+      {
+        "id": "s12#5",
+        "text": "milligrams, taken at dusk, after the blue flame had settled...",
+        "score": 0.44,
+        "gold": true
+      },
+      {
+        "id": "s31#2",
+        "text": "The apprentice measured forty paces from the east door to the...",
+        "score": 0.4,
+        "gold": false
+      }
+    ],
+    "answer": "The Archivist recorded a dose of forty.",
+    "judge": {
+      "correct": false,
+      "missingFacts": ["the unit (milligrams)", "the time of day (dusk)"],
+      "unsupportedClaims": []
+    },
+    "latencyMs": 640,
+    "cached": false
+  },
+  "500-0-3-false": {
+    "retrieved": [
+      {
+        "id": "s12#1",
+        "text": "The scriptorium ledger, ninth volume. Candles are counted at dawn and again at dusk. The east shelf was re-oiled. A delivery of vellum arrived short by two quires. On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled. The west stair still creaks. Inventory of inks: oak gall, lamp black, vermilion...",
+        "score": 0.52,
+        "gold": true
+      },
+      {
+        "id": "s07#1",
+        "text": "A full accounting of the autumn repairs, the stair, the lamp oil, the bindery debts, and the names of every apprentice who signed the roll that season...",
+        "score": 0.49,
+        "gold": false
+      },
+      {
+        "id": "s22#1",
+        "text": "Notes on candle consumption across four seasons, with a long digression on the cost of beeswax and the habits of the night porter...",
+        "score": 0.47,
+        "gold": false
+      }
+    ],
+    "answer": "The ledger covers candles, vellum deliveries and repairs; somewhere in it the Archivist notes a dose taken in the evening.",
+    "judge": {
+      "correct": false,
+      "missingFacts": ["the exact dose (forty milligrams)"],
+      "unsupportedClaims": []
+    },
+    "latencyMs": 910,
+    "cached": false
+  },
+  "120-15-8-false": {
+    "retrieved": [
+      {
+        "id": "s12#3",
+        "text": "On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled.",
+        "score": 0.78,
+        "gold": true
+      },
+      {
+        "id": "s19#2",
+        "text": "The old standard was sixty milligrams at dawn, though that practice was abandoned two winters ago.",
+        "score": 0.74,
+        "gold": false
+      },
+      {
+        "id": "s31#2",
+        "text": "The apprentice measured forty paces from the east door to the reading desk.",
+        "score": 0.71,
+        "gold": false
+      },
+      {
+        "id": "s04#6",
+        "text": "Doses in the southern chapter house are recorded in grains, not milligrams.",
+        "score": 0.69,
+        "gold": false
+      },
+      {
+        "id": "s27#1",
+        "text": "A dose is to be halved for any reader under the age of sixteen.",
+        "score": 0.66,
+        "gold": false
+      },
+      {
+        "id": "s11#5",
+        "text": "Dusk is reckoned from the moment the west stair falls into shadow.",
+        "score": 0.63,
+        "gold": false
+      },
+      {
+        "id": "s19#3",
+        "text": "The Archivist disputed the sixty-milligram standard in a letter never sent.",
+        "score": 0.61,
+        "gold": false
+      },
+      {
+        "id": "s02#8",
+        "text": "Blue flame settles roughly a quarter hour after it is lit.",
+        "score": 0.58,
+        "gold": false
+      }
+    ],
+    "answer": "The Archivist recorded a dose of forty milligrams at dusk, down from the earlier standard of sixty milligrams, and halved it for younger readers.",
+    "judge": {
+      "correct": false,
+      "missingFacts": [],
+      "unsupportedClaims": [
+        "that the Archivist halved the dose for younger readers — that rule appears in a different scroll and was never applied here",
+        "that forty was a reduction from sixty — no scroll links the two"
+      ]
+    },
+    "latencyMs": 1180,
+    "cached": false
+  },
+  "120-15-3-true": {
+    "retrieved": [
+      {
+        "id": "s12#3",
+        "text": "On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled.",
+        "score": 0.94,
+        "gold": true
+      },
+      {
+        "id": "s12#4",
+        "text": "The same entry notes the flame was lit at the seventh bell.",
+        "score": 0.71,
+        "gold": true
+      },
+      {
+        "id": "s19#2",
+        "text": "The old standard was sixty milligrams at dawn, though that practice was abandoned two winters ago.",
+        "score": 0.52,
+        "gold": false
+      }
+    ],
+    "answer": "Forty milligrams, taken at dusk on the third night, after the blue flame had settled.",
+    "judge": { "correct": true, "missingFacts": [], "unsupportedClaims": [] },
+    "latencyMs": 520,
+    "cached": false
+  },
+  "250-30-3-true": {
+    "retrieved": [
+      {
+        "id": "s12#2",
+        "text": "Candles counted at dusk. On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled. The west stair still creaks.",
+        "score": 0.91,
+        "gold": true
+      },
+      {
+        "id": "s12#3",
+        "text": "...after the blue flame had settled. The flame was lit at the seventh bell and the ledger closed at the eighth.",
+        "score": 0.68,
+        "gold": true
+      },
+      {
+        "id": "s11#5",
+        "text": "Dusk is reckoned from the moment the west stair falls into shadow.",
+        "score": 0.5,
+        "gold": false
+      }
+    ],
+    "answer": "Forty milligrams at dusk on the third night, recorded after the blue flame settled.",
+    "judge": { "correct": true, "missingFacts": [], "unsupportedClaims": [] },
+    "latencyMs": 480,
+    "cached": true
+  },
+  "250-30-5-false": {
+    "retrieved": [
+      {
+        "id": "s12#2",
+        "text": "Candles counted at dusk. On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled.",
+        "score": 0.86,
+        "gold": true
+      },
+      {
+        "id": "s19#2",
+        "text": "The old standard was sixty milligrams at dawn, though that practice was abandoned two winters ago.",
+        "score": 0.72,
+        "gold": false
+      },
+      {
+        "id": "s04#6",
+        "text": "Doses in the southern chapter house are recorded in grains, not milligrams.",
+        "score": 0.64,
+        "gold": false
+      },
+      {
+        "id": "s31#2",
+        "text": "The apprentice measured forty paces from the east door to the reading desk.",
+        "score": 0.6,
+        "gold": false
+      },
+      {
+        "id": "s11#5",
+        "text": "Dusk is reckoned from the moment the west stair falls into shadow.",
+        "score": 0.55,
+        "gold": false
+      }
+    ],
+    "answer": "Forty milligrams at dusk, which the southern houses would record in grains.",
+    "judge": {
+      "correct": true,
+      "missingFacts": [],
+      "unsupportedClaims": [
+        "the aside about southern houses is true of a different library and does not belong in this answer"
+      ]
+    },
+    "latencyMs": 760,
+    "cached": false
+  },
+  "default": {
+    "retrieved": [
+      {
+        "id": "s12#3",
+        "text": "On the third night the Archivist recorded a dose of forty milligrams, taken at dusk, after the blue flame had settled.",
+        "score": 0.83,
+        "gold": true
+      },
+      {
+        "id": "s19#2",
+        "text": "The old standard was sixty milligrams at dawn, though that practice was abandoned two winters ago.",
+        "score": 0.6,
+        "gold": false
+      }
+    ],
+    "answer": "Forty milligrams, taken at dusk.",
+    "judge": { "correct": true, "missingFacts": [], "unsupportedClaims": [] },
+    "latencyMs": 700,
+    "cached": false
+  }
+}

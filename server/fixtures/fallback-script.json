@@ -1,0 +1,274 @@
+{
+  "id": "world-fallback-rag",
+  "sourceHash": "",
+  "createdAt": "2026-10-15T00:00:00.000Z",
+  "curriculum": {
+    "title": "Retrieval-Augmented Generation",
+    "subject": "machine-learning",
+    "concepts": [
+      {
+        "id": "chunking",
+        "name": "Chunking",
+        "keyRule": "A chunk smaller than a fact cannot carry that fact, so retrieval succeeds and the answer is still wrong.",
+        "requires": [],
+        "difficulty": 2,
+        "misconceptions": [
+          "Smaller chunks are always more precise",
+          "If retrieval found the right document, the answer must be right"
+        ],
+        "kind": "ai-system",
+        "quote": "A chunk is the smallest unit retrieval can hand to the model",
+        "page": 1
+      },
+      {
+        "id": "top-k",
+        "name": "The top-k budget",
+        "keyRule": "k is a budget, not a quality dial: every extra chunk is one more thing the model is allowed to believe.",
+        "requires": ["chunking"],
+        "difficulty": 3,
+        "misconceptions": [
+          "More retrieved context is always better",
+          "The model ignores whatever is irrelevant"
+        ],
+        "kind": "ai-system",
+        "quote": "Every chunk admitted to the prompt is a chunk the model is permitted to believe.",
+        "page": 2
+      },
+      {
+        "id": "grounding",
+        "name": "Grounding",
+        "keyRule": "Grounding is a property of each claim, not a feeling about the whole answer.",
+        "requires": ["top-k"],
+        "difficulty": 4,
+        "misconceptions": [
+          "Relevant retrieved passages guarantee a supported answer",
+          "A confident, fluent answer is a grounded one"
+        ],
+        "kind": "ai-system",
+        "quote": "grounding is checked per claim",
+        "page": 2
+      }
+    ]
+  },
+  "outline": {
+    "title": "The Oracle of the Old Library",
+    "logline": "The Oracle that has answered the city's questions for three hundred years has started lying, and the only way to repair it is to repair the library it reads from.",
+    "artStyle": "Candlelit 2D pixel-painting, dark oak and parchment, warm gold rim light, cold blue glow from the Oracle's flame.",
+    "villain": "The Binder, who has been re-cutting the scrolls to flatter a patron.",
+    "twist": "The Oracle never lied. It answered exactly what it was handed, and someone chose what to hand it.",
+    "cast": [
+      {
+        "id": "archivist",
+        "name": "The Archivist",
+        "look": "Ink-stained sleeves, spectacles pushed up, a knife for trimming vellum.",
+        "persona": "Dry and precise, allergic to hand-waving, explains by showing you the broken version first."
+      },
+      {
+        "id": "oracle",
+        "name": "The Oracle",
+        "look": "A blue flame in a brass cage, brightening when it speaks.",
+        "persona": "Confident even when starved of facts, never volunteers that it is guessing.",
+        "misconception": "Believes a fluent answer and a supported answer are the same thing."
+      }
+    ],
+    "acts": [
+      {
+        "id": "act1",
+        "conceptId": "chunking",
+        "title": "Torn Scrolls",
+        "sceneName": "The Scriptorium",
+        "oneLine": "Re-cut the night's torn scrolls so a single piece still holds a whole fact, then hand one to the Oracle."
+      },
+      {
+        "id": "act2",
+        "conceptId": "top-k",
+        "title": "The Oracle's Satchel",
+        "sceneName": "The Stacks",
+        "oneLine": "Decide how many scrolls go in the satchel, and watch a generous handful bury the one that mattered."
+      },
+      {
+        "id": "act3",
+        "conceptId": "grounding",
+        "title": "The Lying Oracle",
+        "sceneName": "Sanctum of the Blue Flame",
+        "oneLine": "Pin every claim the Oracle makes to the scroll it came from, and strike the one that has none."
+      }
+    ]
+  },
+  "acts": [
+    {
+      "id": "act1",
+      "conceptId": "chunking",
+      "title": "Torn Scrolls",
+      "goal": "Tune the cutting frame until a single piece carries the whole dose entry, then feed it to the Oracle.",
+      "verbs": ["tune", "plant_marker"],
+      "prediction": {
+        "question": "You cut the scrolls into 40-word pieces. The dose and its unit sit on either side of the cut. What does the Oracle say?",
+        "options": [
+          "The full answer — smaller pieces are more precise",
+          "Half the answer, confidently, because the piece it got ends mid-fact",
+          "Nothing — it refuses when a piece is too small"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "A chunk is the smallest thing retrieval can hand over, so a chunk smaller than a fact cannot carry that fact. Retrieval still succeeds — it finds the right scroll — and the answer is still wrong, because the Oracle was given half a sentence and finished it the way such sentences usually end. Overlap re-staples the seam.",
+      "analogy": {
+        "text": "Chunking is cutting a film into clips: cut mid-sentence and the clip is useless even though nothing is missing from the reel.",
+        "breaksWhere": "A viewer can simply watch the next clip; the Oracle only ever sees the clips it was handed, and never knows one was cut short."
+      },
+      "dialogue": [
+        {
+          "speaker": "The Archivist",
+          "line": "The wind took every scroll on the east shelf. Cut them back yourself."
+        },
+        {
+          "speaker": "The Oracle",
+          "line": "A dose of forty. I am certain of it."
+        },
+        {
+          "speaker": "The Archivist",
+          "line": "Forty what? The unit is on the table behind you."
+        }
+      ],
+      "scene": {
+        "name": "The Scriptorium",
+        "description": "Long oak cutting tables under hanging candles, torn scroll-halves weighted down with lead, a brass cutting frame with a sliding gauge.",
+        "objects": [
+          {
+            "id": "cutting-frame",
+            "label": "Cutting frame",
+            "look": "Brass frame with a sliding word-count gauge."
+          },
+          {
+            "id": "torn-pile",
+            "label": "Torn scrolls",
+            "look": "Half-sentences weighted under lead bars."
+          }
+        ],
+        "exitSide": "east"
+      },
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "chunking",
+        "question": "What dose did the Archivist record, and when?",
+        "goldFact": "forty milligrams, taken at dusk on the third night"
+      }
+    },
+    {
+      "id": "act2",
+      "conceptId": "top-k",
+      "title": "The Oracle's Satchel",
+      "goal": "Fill the satchel, ask the question, and find the number of scrolls that answers it without burying it.",
+      "verbs": ["tune", "intercept"],
+      "prediction": {
+        "question": "You put 8 scrolls in the satchel instead of 3. The right scroll is still in there. The answer…",
+        "options": [
+          "Improves — more context can only help",
+          "Is unchanged — the Oracle ignores what is irrelevant",
+          "Gets worse — five plausible neighbours give it new claims to borrow"
+        ],
+        "correctIndex": 2
+      },
+      "explainAfter": "k is a budget, not a volume dial. Every extra scroll is one more thing the Oracle is allowed to believe, and the neighbours of a good answer are mostly near-misses: the old standard, a different house's units, a rule for someone else. Reranking keeps the budget small and still lands the right scroll on top.",
+      "analogy": {
+        "text": "The satchel is a witness line-up: adding more faces does not help the witness, it gives them more ways to be confidently wrong.",
+        "breaksWhere": "A witness can say 'none of these'; the Oracle always answers from what it was shown, so it never declines the line-up."
+      },
+      "dialogue": [
+        {
+          "speaker": "The Archivist",
+          "line": "It will read whatever fits in the satchel. All of it. Equally."
+        },
+        {
+          "speaker": "The Oracle",
+          "line": "Forty milligrams, reduced from sixty, halved for younger readers."
+        },
+        {
+          "speaker": "The Archivist",
+          "line": "Two of those three came from scrolls about a different library."
+        }
+      ],
+      "scene": {
+        "name": "The Stacks",
+        "description": "Five storeys of shelves in candle-dark, a rolling ladder, the Oracle's leather satchel hanging open on a hook.",
+        "objects": [
+          {
+            "id": "satchel",
+            "label": "The Oracle's satchel",
+            "look": "Worn leather bag with a brass count-dial on the strap."
+          },
+          {
+            "id": "rank-ledger",
+            "label": "Rank ledger",
+            "look": "Open ledger scoring each scroll against the question."
+          }
+        ],
+        "exitSide": "west"
+      },
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "topk",
+        "question": "What dose did the Archivist record, and when?",
+        "goldFact": "forty milligrams, taken at dusk on the third night"
+      }
+    },
+    {
+      "id": "act3",
+      "conceptId": "grounding",
+      "title": "The Lying Oracle",
+      "goal": "Make the Oracle point at the scroll behind each claim, and strike the claim that has none.",
+      "verbs": ["interrogate", "deduction"],
+      "prediction": {
+        "question": "Every retrieved scroll is relevant and the answer reads perfectly. Is it grounded?",
+        "options": [
+          "Yes — relevant scrolls make a grounded answer",
+          "Not necessarily — a claim can still appear that no scroll supports",
+          "Only if the scrolls were reranked"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "Grounding is a property of each claim, not a feeling about the answer. Retrieval decides what the Oracle could say; grounding checks what it did say, sentence by sentence, against the scrolls it held. Anything that cannot point at a scroll is a guess in a confident voice.",
+      "analogy": {
+        "text": "Grounding is a receipt check: every line on the bill has to match something that left the kitchen.",
+        "breaksWhere": "A bill has a fixed set of lines; the Oracle invents new lines as it writes, so you cannot check the total — only each claim as it appears."
+      },
+      "dialogue": [
+        {
+          "speaker": "The Oracle",
+          "line": "Forty milligrams at dusk. The Binder approved the change himself."
+        },
+        {
+          "speaker": "The Archivist",
+          "line": "Show me the scroll that says so."
+        },
+        {
+          "speaker": "The Oracle",
+          "line": "…I have no scroll for the second part."
+        }
+      ],
+      "scene": {
+        "name": "Sanctum of the Blue Flame",
+        "description": "A circular stone chamber, the Oracle's caged flame at the centre, a claim board of pins and thread around the walls.",
+        "objects": [
+          {
+            "id": "claim-board",
+            "label": "Claim board",
+            "look": "Cork board, each claim on a card, red thread running to its scroll."
+          },
+          {
+            "id": "blue-flame",
+            "label": "The Oracle",
+            "look": "Blue flame in a brass cage, brightening as it speaks."
+          }
+        ],
+        "exitSide": "south"
+      },
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "grounding",
+        "question": "What dose did the Archivist record, and who approved it?",
+        "goldFact": "forty milligrams, taken at dusk on the third night; no scroll records who approved it"
+      }
+    }
+  ]
+}
