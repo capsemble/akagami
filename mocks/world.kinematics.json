@@ -34,10 +34,7 @@
       "conceptId": "average-speed",
       "title": "The Alibi",
       "goal": "Dalvi's timings put the guard 6 km up the ghat in 10 minutes. Set the deduction board to the speed that implies, and show him it cannot be walked.",
-      "verbs": [
-        "deduction",
-        "interrogate"
-      ],
+      "verbs": ["deduction", "interrogate"],
       "sceneId": "scene-signal-box",
       "prediction": {
         "question": "Dalvi says the guard walked 6 km up the ghat in 10 minutes. Before you compute anything — is that possible?",
@@ -114,10 +111,7 @@
       "conceptId": "braking-distance",
       "title": "The Runaway",
       "goal": "Plant the brake marker up the grade, then drive the goods train down and let it stop inside the siding — not through the water tank.",
-      "verbs": [
-        "plant_marker",
-        "drive"
-      ],
+      "verbs": ["plant_marker", "drive"],
       "sceneId": "scene-falling-grade",
       "prediction": {
         "question": "You move the marker 10 m further down the grade. The stopping distance…",
@@ -206,9 +200,7 @@
       "conceptId": "projectile-motion",
       "title": "The Zipline",
       "goal": "Aim the satchel launcher across the gorge and fire, so the mail lands on the far ledge before the bandit reaches it.",
-      "verbs": [
-        "aim_launch"
-      ],
+      "verbs": ["aim_launch"],
       "sceneId": "scene-gorge",
       "prediction": {
         "question": "You double the forward speed and keep the upward speed the same. The satchel…",

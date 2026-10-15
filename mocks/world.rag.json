@@ -34,10 +34,7 @@
       "conceptId": "chunking",
       "title": "Torn Scrolls",
       "goal": "The night winds tore every scroll at a different place. Re-cut the scrolls so a single piece still holds a whole answer, then hand one to the Oracle.",
-      "verbs": [
-        "tune",
-        "plant_marker"
-      ],
+      "verbs": ["tune", "plant_marker"],
       "sceneId": "scene-scriptorium",
       "prediction": {
         "question": "You cut the scrolls into 40-word pieces. The answer to 'what dose did the Archivist record?' spans two sentences. What does the Oracle say?",
@@ -72,10 +69,7 @@
       "conceptId": "top-k",
       "title": "The Oracle's Satchel",
       "goal": "The Oracle will only read what fits in its satchel. Tune how many scrolls you stuff in — too few and the fact is missing, too many and the truth drowns in neighbours.",
-      "verbs": [
-        "tune",
-        "intercept"
-      ],
+      "verbs": ["tune", "intercept"],
       "sceneId": "scene-stacks",
       "prediction": {
         "question": "You raise k from 3 to 8 without reranking. The gold scroll is still in there. What happens to the answer?",
@@ -110,10 +104,7 @@
       "conceptId": "grounding",
       "title": "The Lying Oracle",
       "goal": "The Oracle has just stated a dose nobody ever wrote down. Interrogate it, make it point at the scroll each claim came from, and strike the claim with no scroll behind it.",
-      "verbs": [
-        "interrogate",
-        "deduction"
-      ],
+      "verbs": ["interrogate", "deduction"],
       "sceneId": "scene-sanctum",
       "prediction": {
         "question": "Every retrieved scroll is relevant and the answer sounds perfect. Is it grounded?",
