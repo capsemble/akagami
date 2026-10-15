@@ -33,7 +33,7 @@
       "id": "act1",
       "conceptId": "average-speed",
       "title": "The Alibi",
-      "goal": "Dalvi's timings put the guard 6 km up the ghat in 10 minutes. Set the deduction board to the speed that implies, and show him it cannot be walked.",
+      "goal": "Dalvi's book puts the guard six kilometres up the ghat in ten minutes. Show him what that would take.",
       "verbs": ["deduction", "interrogate"],
       "sceneId": "scene-signal-box",
       "prediction": {
@@ -104,14 +104,48 @@
           "mood": "worried",
           "line": "Then set the board to what your own timings imply, and we shall see what nineteen years is worth."
         }
-      ]
+      ],
+      "stage": {
+        "bindings": [
+          {
+            "kind": "needle",
+            "param": "claimedSpeed",
+            "at": {
+              "x": 730,
+              "y": 250
+            },
+            "band": {
+              "from": 0,
+              "to": 25,
+              "label": "what a person can walk"
+            },
+            "unit": "km/h",
+            "prompt": "the deduction board"
+          }
+        ],
+        "readables": {
+          "signed-timetable": {
+            "speaker": "Station Master Dalvi",
+            "lines": [
+              "Guard Phadke, departed Ghat 9 — ten past the hour.",
+              "Signed in at Kanhe cabin — twenty past. Six kilometres of ghat path between them.",
+              "Signed, R. Dalvi, Station Master. Nineteen years of them, in this same hand."
+            ]
+          }
+        }
+      },
+      "beat": {
+        "won": "Dalvi sits down very suddenly. The book stays open on the desk.",
+        "lost": "Dalvi folds his arms. \"Nineteen years, Inspector.\"",
+        "speaker": "Inspector Rane"
+      }
     },
     {
       "id": "act2",
       "conceptId": "braking-distance",
       "title": "The Runaway",
-      "goal": "Plant the brake marker up the grade, then drive the goods train down and let it stop inside the siding — not through the water tank.",
-      "verbs": ["plant_marker", "drive"],
+      "goal": "You have a brake and nothing else. Ride her down the grade and stop her inside the siding — short of the water tank.",
+      "verbs": ["drive"],
       "sceneId": "scene-falling-grade",
       "prediction": {
         "question": "You move the marker 10 m further down the grade. The stopping distance…",
@@ -127,36 +161,38 @@
         "type": "formula",
         "spec": {
           "constants": {
-            "u0": 22,
-            "brakeRate": 1.6,
-            "sidingEnd": 180
+            "u0": 16,
+            "brakeRate": 3.2,
+            "sidingEnd": 150,
+            "sidingMouth": 120,
+            "trackEnd": 170
           },
           "state": {
             "x": "0",
             "v": "u0"
           },
           "step": {
-            "v": "v - brakeRate * dt",
+            "v": "v - brakeRate * brake * dt",
             "x": "x + v * dt"
           },
           "outputs": {
-            "stopX": "flagPosition + x"
+            "stopX": "x"
           },
-          "win": "stopX <= sidingEnd && stopX >= sidingEnd - 12",
+          "win": "x >= sidingMouth && x <= sidingEnd",
           "dt": 0.05,
-          "maxTime": 40,
-          "until": "v <= 0",
+          "maxTime": 60,
+          "until": "v <= 0 || x >= trackEnd",
           "visual": {
             "kind": "timeline",
             "x": "t",
-            "y": "flagPosition + x",
-            "xLabel": "time since the brakes bite (s)",
+            "y": "x",
+            "xLabel": "time since she was let go (s)",
             "yLabel": "distance down the grade (m)",
             "band": {
-              "from": "sidingEnd - 12",
+              "from": "sidingMouth",
               "to": "sidingEnd",
               "axis": "y",
-              "label": "Move the marker and the whole curve slides — its shape never changes."
+              "label": "Braking later moves the whole stop down the hill. It never makes it shorter."
             },
             "markers": [
               {
@@ -169,37 +205,73 @@
         },
         "params": [
           {
-            "name": "flagPosition",
+            "name": "brake",
             "min": 0,
-            "max": 60,
-            "default": 5,
-            "solution": 22
+            "max": 1,
+            "default": 0,
+            "solution": 0.3
           }
         ]
       },
       "dialogue": [
         {
           "speaker": "Inspector Rane",
-          "mood": "worried",
           "line": "The siding ends at the water tank. Overrun it and we are both in the gorge."
         },
         {
           "speaker": "Station Master Dalvi",
-          "mood": "neutral",
-          "line": "Brake at the top. One always brakes at the top."
+          "line": "Brake at the top, Inspector. One always brakes at the top.",
+          "mood": "neutral"
         },
         {
           "speaker": "Inspector Rane",
-          "mood": "neutral",
-          "line": "At the top she is still doing twenty-two. Let us find out what twenty-two costs."
+          "line": "At the top she is still doing sixteen. Let us find out what sixteen costs."
         }
-      ]
+      ],
+      "stage": {
+        "bindings": [
+          {
+            "kind": "control",
+            "param": "brake",
+            "held": 1,
+            "label": "brake",
+            "prompt": "release the brakes and ride her down"
+          }
+        ],
+        "playback": {
+          "actor": "train",
+          "path": {
+            "from": {
+              "x": 260,
+              "y": 500
+            },
+            "to": {
+              "x": 1892,
+              "y": 500
+            },
+            "fromValue": 0,
+            "toValue": 170,
+            "unit": "m"
+          },
+          "along": "x"
+        },
+        "readout": {
+          "output": "stopX",
+          "label": "stopped at",
+          "unit": "m"
+        }
+      },
+      "beat": {
+        "won": "She comes to rest with the tank still dry. Dalvi says nothing at all.",
+        "lost": "Water everywhere and the siding points bent. Rane does not look at you.",
+        "speaker": "Inspector Rane"
+      }
     },
     {
       "id": "act3",
       "conceptId": "projectile-motion",
       "title": "The Zipline",
-      "goal": "Aim the satchel launcher across the gorge and fire, so the mail lands on the far ledge before the bandit reaches it.",
+      "goal": "The bandit is on the far ledge and walking. Put the mail across before he reaches it.",
       "verbs": ["aim_launch"],
       "sceneId": "scene-gorge",
       "prediction": {
@@ -219,23 +291,28 @@
             "g": 9.81,
             "startY": 11,
             "ledgeNear": 24,
-            "ledgeFar": 28
+            "ledgeFar": 28,
+            "banditFrom": 29,
+            "banditEta": 2.6
           },
           "state": {
+            "t": "0",
             "x": "0",
             "y": "startY",
             "vx": "launchVx",
             "vy": "launchVy"
           },
           "step": {
+            "t": "t + dt",
             "x": "x + vx * dt",
             "y": "y + vy * dt",
             "vy": "vy - g * dt"
           },
           "outputs": {
-            "landX": "x"
+            "landX": "x",
+            "flight": "t"
           },
-          "win": "landX >= ledgeNear && landX <= ledgeFar",
+          "win": "landX >= ledgeNear && landX <= ledgeFar && flight <= banditEta",
           "dt": 0.02,
           "maxTime": 12,
           "until": "y <= 0",
@@ -249,7 +326,7 @@
               "from": "ledgeNear",
               "to": "ledgeFar",
               "axis": "x",
-              "label": "Upward speed sets how long it flies; forward speed sets how far that time carries it."
+              "label": "Upward speed sets how long it flies. He is walking the whole time it is up there."
             },
             "markers": [
               {
@@ -280,20 +357,69 @@
       "dialogue": [
         {
           "speaker": "Inspector Rane",
-          "mood": "worried",
-          "line": "The ledge is twenty-six metres out and eleven below. He is four minutes ahead of us."
+          "line": "The ledge is twenty-six metres out and eleven below. He is on it already, and walking."
         },
         {
           "speaker": "Station Master Dalvi",
-          "mood": "pleased",
-          "line": "Aim higher, Inspector. Height carries."
+          "line": "Aim higher, Inspector. Height carries.",
+          "mood": "neutral"
         },
         {
           "speaker": "Inspector Rane",
-          "mood": "neutral",
-          "line": "Height buys time, Station Master. Distance is bought separately."
+          "line": "Then he will watch it come down at his leisure."
         }
-      ]
+      ],
+      "stage": {
+        "bindings": [
+          {
+            "kind": "aim",
+            "at": {
+              "x": 800,
+              "y": 760
+            },
+            "paramX": "launchVx",
+            "paramY": "launchVy",
+            "maxDrag": 170,
+            "prompt": "the satchel launcher"
+          }
+        ],
+        "playback": {
+          "actor": "satchel",
+          "path": {
+            "from": {
+              "x": 800,
+              "y": 760
+            },
+            "to": {
+              "x": 800,
+              "y": 100
+            },
+            "fromValue": 0,
+            "toValue": 29,
+            "unit": "m"
+          },
+          "along": "x",
+          "lift": "y",
+          "liftScale": 14,
+          "seconds": 2.2,
+          "rival": {
+            "along": "banditFrom - (banditFrom - ledgeNear) * t / banditEta",
+            "label": "the bandit"
+          }
+        },
+        "readout": {
+          "output": "flight",
+          "label": "in the air",
+          "unit": "s"
+        }
+      },
+      "beat": {
+        "won": "The satchel hits the ledge a clear stride ahead of him. He turns and runs.",
+        "lost": "He picks it up without breaking stride and is gone into the trees.",
+        "speaker": "Inspector Rane"
+      }
     }
-  ]
+  ],
+  "villain": "Station Master R. Dalvi",
+  "twist": "There was no bandit on the ghat that night until Dalvi needed one. He wrote the timings himself, signed them himself, and read them back to you himself — nineteen years of a hand that nobody had ever once checked."
 }

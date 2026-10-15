@@ -1,10 +1,35 @@
+import type { SimSample } from '@chapter-quest/shared';
+
 /**
- * The only wire between Phaser and React. Phaser emits, React listens.
- * Keep it this narrow — if a component reaches into the scene, it gets messy fast.
+ * The only wire between Phaser and React. Keep it this narrow — if a component
+ * reaches into the scene, it gets messy fast.
+ *
+ * It runs both ways now. Phaser owns the act while it is being played: the
+ * player plants a marker or pulls an aim vector, and the scene reports the
+ * numbers that came out of it. React owns the simulation and the verdict: it
+ * runs the physics on those numbers and hands the samples back to be acted out.
+ * Nothing else crosses.
  */
 export interface GameEvents {
+  // --- Phaser → React ---
+  /** E on an interactable that is not a readable and not the act's own control. */
   interact: { id: string };
   ready: { sceneId: string };
+  /** Live while the player is still choosing, so the HUD can echo the value. */
+  aiming: { values: Record<string, number> };
+  /** The player has committed. Run the simulation on exactly these. */
+  commit: { values: Record<string, number> };
+  /** E on something the stage says can be read. */
+  read: { id: string };
+  /** The run has finished and the verdict can land. A live act reports its own
+   *  outputs, because React never simulated it — the player did. */
+  played: { won: boolean; outputs?: Record<string, number> };
+
+  // --- React → Phaser ---
+  /** A finished run, to act out in the scene. */
+  outcome: { won: boolean; values: Record<string, number>; samples: SimSample[] };
+  /** Back to unsolved: clear the marker, the trail, the needle. */
+  reset: Record<string, never>;
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

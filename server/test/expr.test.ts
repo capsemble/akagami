@@ -169,3 +169,26 @@ test('randomWinRate is deterministic for a given seed', () => {
   assert.equal(a, b);
   assert.ok(a > 0.4 && a < 0.6, `half the range should win, got ${a}`);
 });
+
+/**
+ * Regression: a frame is shorter than a step (16 ms against 50 ms), so flooring
+ * elapsed time per call gave zero steps every frame and a driven run sat still.
+ */
+test('advance carries leftover time instead of dropping it', async () => {
+  const { Run } = await import('@chapter-quest/shared');
+  const spec = {
+    constants: {},
+    state: { x: '0' },
+    step: { x: 'x + dt' },
+    outputs: {},
+    win: 'x > 0',
+    dt: 0.05,
+    maxTime: 10,
+  };
+
+  const run = new Run(spec, {});
+  let steps = 0;
+  for (let frame = 0; frame < 60; frame++) steps += run.advance(1 / 60);
+  assert.equal(steps, 20, 'one second at dt=0.05 is twenty steps, whatever the frame rate');
+  assert.ok(Math.abs((run.scope.x as number) - 1) < 1e-9, 'and one second of simulated time');
+});

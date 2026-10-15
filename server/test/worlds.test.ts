@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_WORLD_ID, loadWorld } from '../src/mocks.js';
+import type { Point } from '@chapter-quest/shared';
+import { DEFAULT_WORLD_ID, loadScene, loadWorld } from '../src/mocks.js';
 
 /**
  * Regression: both world routes used to call loadWorld() with no argument, so
@@ -190,4 +191,193 @@ test('every dialogue line names a real cast member and respects the limits', asy
       }
     }
   }
+});
+
+/**
+ * A staged act is played in the scene, so its bindings have to agree with the
+ * scene's geometry and with the simulation at the same time. Nothing else
+ * checks that: a path that runs through a wall, or a target band painted past
+ * the end of the track, type-checks perfectly and is only wrong on screen.
+ */
+test('every staged act binds to params that exist', async () => {
+  const world = await loadWorld('world-ghat-9');
+
+  for (const act of world.acts) {
+    assert.ok(act.stage, `${act.id} has no stage, so it falls back to the slider panel`);
+    if (!act.stage || act.mechanic?.type !== 'formula') continue;
+    const names = new Set(act.mechanic.params.map((p) => p.name));
+
+    for (const binding of act.stage.bindings) {
+      const used = binding.kind === 'aim' ? [binding.paramX, binding.paramY] : [binding.param];
+      for (const name of used) {
+        assert.ok(names.has(name), `${act.id}: binding names "${name}", which is not a param`);
+      }
+    }
+    assert.equal(
+      act.stage.bindings.length,
+      act.mechanic.params.length === 2 && act.stage.bindings[0]?.kind === 'aim'
+        ? 1
+        : act.mechanic.params.length,
+      `${act.id}: every param needs somewhere in the world to come from`,
+    );
+  }
+});
+
+test('nothing a staged act asks you to reach is inside a wall', async () => {
+  const world = await loadWorld('world-ghat-9');
+
+  const inside = (rect: { x: number; y: number; w: number; h: number }, p: Point) =>
+    p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h;
+
+  for (const act of world.acts) {
+    if (!act.stage) continue;
+    const scene = await loadScene(act.sceneId);
+
+    // A control is held, not walked to, so it has nowhere to be.
+    const reach: [string, Point][] = [];
+    for (const binding of act.stage.bindings) {
+      if (binding.kind === 'control') continue;
+      if (binding.kind === 'marker') {
+        reach.push([`${binding.param} path start`, binding.path.from]);
+        reach.push([`${binding.param} path end`, binding.path.to]);
+      } else {
+        reach.push([binding.kind, binding.at]);
+      }
+    }
+
+    for (const [what, point] of reach) {
+      assert.ok(
+        point.x >= 0 && point.x <= scene.width && point.y >= 0 && point.y <= scene.height,
+        `${act.id}: ${what} is outside ${scene.id}`,
+      );
+      const wall = scene.blocked.find((rect) => inside(rect, point));
+      assert.ok(!wall, `${act.id}: ${what} is inside a wall of ${scene.id}`);
+    }
+
+    for (const id of Object.keys(act.stage.readables ?? {})) {
+      assert.ok(
+        scene.interactables.some((it) => it.id === id),
+        `${act.id}: readable "${id}" is not an interactable in ${scene.id}`,
+      );
+    }
+  }
+});
+
+test('a winning run ends inside the span the scene paints', async () => {
+  const { evaluate, simulate } = await import('@chapter-quest/shared');
+  const world = await loadWorld('world-ghat-9');
+
+  for (const act of world.acts) {
+    const playback = act.stage?.playback;
+    if (!playback || act.mechanic?.type !== 'formula') continue;
+    const { spec, params } = act.mechanic;
+    const band = spec.visual?.band;
+    assert.ok(band, `${act.id} plays a run out but has no band to paint as the target`);
+    if (!band) continue;
+
+    const dials = Object.fromEntries(params.map((p) => [p.name, p.solution]));
+    const run = simulate(spec, dials, { trace: true });
+    const scope = { ...spec.constants, ...dials, ...run.outputs };
+
+    const low = Math.min(playback.path.fromValue, playback.path.toValue);
+    const high = Math.max(playback.path.fromValue, playback.path.toValue);
+    for (const edge of [evaluate(band.from, scope), evaluate(band.to, scope)]) {
+      assert.ok(
+        edge >= low && edge <= high,
+        `${act.id}: the target band at ${edge} falls off a path running ${low}…${high}`,
+      );
+    }
+
+    // The same expression the scene moves the actor with.
+    const last = run.samples.at(-1);
+    assert.ok(last, `${act.id}: a traced run with no samples cannot be acted out`);
+    const landed = evaluate(playback.along, { ...scope, ...last });
+    assert.ok(
+      landed >= evaluate(band.from, scope) && landed <= evaluate(band.to, scope),
+      `${act.id}: the winning run ends at ${landed}, outside the span the floor shows`,
+    );
+    if (playback.lift) {
+      assert.ok(
+        Number.isFinite(evaluate(playback.lift, { ...scope, ...last })),
+        `${act.id}: lift does not evaluate, so the flight has no height`,
+      );
+    }
+  }
+});
+
+/**
+ * The live acts step `Run` by the frame while `simulate` drives it in a loop.
+ * If those two ever disagree, the act you played and the act the validator
+ * scored are different games.
+ */
+test('a run driven step by step matches the one simulate() runs', async () => {
+  const { Run, simulate } = await import('@chapter-quest/shared');
+  const world = await loadWorld('world-ghat-9');
+
+  for (const act of world.acts) {
+    if (act.mechanic?.type !== 'formula') continue;
+    const { spec, params } = act.mechanic;
+    const dials = Object.fromEntries(params.map((p) => [p.name, p.solution]));
+
+    const closed = simulate(spec, dials);
+    const run = new Run(spec, dials);
+    while (run.step());
+    const driven = run.finish();
+
+    assert.equal(driven.steps, closed.steps, `${act.id}: step counts differ`);
+    assert.equal(driven.won, closed.won, `${act.id}: verdicts differ`);
+    for (const [name, value] of Object.entries(closed.outputs)) {
+      assert.ok(
+        Math.abs(driven.outputs[name]! - value) < 1e-9,
+        `${act.id}: ${name} is ${driven.outputs[name]} driven, ${value} simulated`,
+      );
+    }
+  }
+});
+
+/**
+ * The concept Act II exists to teach, asserted: braking later slides the whole
+ * stop down the hill and never shortens it. If a rebalance ever breaks this,
+ * the act still "works" but stops meaning anything.
+ */
+test('braking later moves the stop, it does not shorten it', async () => {
+  const { Run } = await import('@chapter-quest/shared');
+  const world = await loadWorld('world-ghat-9');
+  const act = world.acts.find((a) => a.stage?.bindings.some((b) => b.kind === 'control'));
+  assert.ok(act, 'no driven act to check');
+  if (!act || act.mechanic?.type !== 'formula') return;
+
+  const control = act.stage!.bindings.find((b) => b.kind === 'control')!;
+  if (control.kind !== 'control') return;
+  const { spec } = act.mechanic;
+
+  /** Roll until `brakeAt`, then hold the brake all the way down. */
+  const brakeAt = (distance: number) => {
+    const run = new Run(spec, { [control.param]: 0 });
+    while (!run.done) {
+      run.set(control.param, (run.scope.x as number) >= distance ? control.held : 0);
+      run.step();
+    }
+    return run.scope.x as number;
+  };
+
+  const early = brakeAt(60);
+  const late = brakeAt(90);
+
+  assert.ok(late > early, 'braking later must stop further down the hill');
+  assert.ok(
+    Math.abs(late - early - 30) < 1,
+    `moving the brake 30 m later moved the stop by ${(late - early).toFixed(1)} m, not 30`,
+  );
+  assert.ok(
+    Math.abs(late - 90 - (early - 60)) < 1,
+    `the braking distance itself changed: ${(early - 60).toFixed(1)} m then ${(late - 90).toFixed(1)} m`,
+  );
+
+  // And the act is actually winnable by judging it, not only by the declared dial.
+  const won = brakeAt(90);
+  assert.ok(
+    won >= spec.constants.sidingMouth! && won <= spec.constants.sidingEnd!,
+    `braking at 90 m stops at ${won.toFixed(1)} m, outside the siding`,
+  );
 });

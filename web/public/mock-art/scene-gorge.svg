@@ -24,9 +24,6 @@
 <polygon points="600.0,350.0 700.0,400.0 630.0,435.0 530.0,385.0" fill="#d9a441" opacity="0.22"/>
 <polygon points="870.0,195.0 1010.0,265.0 950.0,295.0 810.0,225.0" fill="#d9a441" opacity="0.22"/>
 <ellipse cx="490" cy="335" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="490" y="369" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">rane</text>
 <ellipse cx="730" cy="455" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="730" y="489" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">dalvi</text>
 <ellipse cx="520" cy="440" rx="12" ry="6" fill="#3f7f2e"/>
-<text x="24" y="40" fill="#f4ecd8" font-family="monospace" font-size="26" opacity="0.8">Gorge Crossing — isometric placeholder</text>
 </svg>

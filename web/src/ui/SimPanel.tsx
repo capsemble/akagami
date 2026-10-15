@@ -10,18 +10,28 @@ interface Props {
   outcome: SimOutcome | null;
   /** False while shared/expr.ts is still the placeholder. */
   available: boolean;
+  /** True when the act was played in the world and this is the explanation. */
+  staged?: boolean;
   onChange: (dials: Record<string, number>) => void;
   onRun: () => void;
   onClose: () => void;
 }
 
-/** Turn the dials, run the physics, see where it lands. Props in, events out. */
+/**
+ * The numbers behind a run.
+ *
+ * On a staged act this is not how you play — you have already planted the
+ * marker or pulled the aim, and this opens afterwards to show what those
+ * numbers did. The dials stay live on purpose: once you have seen the thing
+ * happen, dragging them is the cheapest way to find out what else would have.
+ */
 export function SimPanel({
   act,
   mechanic,
   dials,
   outcome,
   available,
+  staged = false,
   onChange,
   onRun,
   onClose,
@@ -35,7 +45,7 @@ export function SimPanel({
         </button>
       </header>
 
-      <p style={styles.goal}>{act.goal}</p>
+      <p style={styles.goal}>{staged ? act.explainAfter : act.goal}</p>
 
       <div style={styles.controls}>
         {mechanic.params.map((param) => {
@@ -64,7 +74,7 @@ export function SimPanel({
       </div>
 
       <button type="button" onClick={onRun} disabled={!available} style={styles.run}>
-        {available ? 'Run it' : 'Simulator not wired up'}
+        {!available ? 'Simulator not wired up' : staged ? 'Try these numbers' : 'Run it'}
       </button>
 
       {!available ? (

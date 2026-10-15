@@ -22,9 +22,6 @@
 <polygon points="785.0,192.5 895.0,247.5 855.0,267.5 745.0,212.5" fill="#d9a441" opacity="0.22"/>
 <polygon points="550.0,280.0 630.0,320.0 570.0,350.0 490.0,310.0" fill="#d9a441" opacity="0.22"/>
 <ellipse cx="575" cy="228" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="575" y="262" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">rane</text>
 <ellipse cx="805" cy="343" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="805" y="377" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">dalvi</text>
 <ellipse cx="470" cy="390" rx="12" ry="6" fill="#3f7f2e"/>
-<text x="24" y="40" fill="#f4ecd8" font-family="monospace" font-size="26" opacity="0.8">Ghat 9 Signal Box — isometric placeholder</text>
 </svg>

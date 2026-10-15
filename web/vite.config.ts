@@ -14,7 +14,11 @@ export default defineConfig({
     // mocks/ lives outside web/, so Vite needs permission to read it.
     fs: { allow: [repoRoot] },
     proxy: {
-      '/api': { target: 'http://localhost:8787', changeOrigin: true },
+      // Override when the API is on another port, e.g. two servers side by side.
+      '/api': {
+        target: process.env.VITE_API_TARGET ?? 'http://localhost:8787',
+        changeOrigin: true,
+      },
     },
   },
   build: {

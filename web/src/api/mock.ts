@@ -57,11 +57,19 @@ function pickRagKey(p: RagParams): string {
 
 export const mockApi: ApiClient = {
   async createWorld(input) {
+    // An uploaded file has to be opened before it can be matched on. Testing
+    // `typeof input === 'string'` and nothing else meant every file upload
+    // skipped the check entirely and silently landed on the default world,
+    // however plainly the chapter announced its subject.
+    const text = typeof input === 'string' ? input : await input.text();
     const label = typeof input === 'string' ? `${input.length} chars` : input.name;
-    console.info('[mock] createWorld', label);
-    // "demo:rag" from the upload screen picks the RAG world; anything else is kinematics.
-    const wanted =
-      typeof input === 'string' && input.includes('rag') ? 'world-oracle-library' : defaultWorld.id;
+
+    // "demo:rag" from the upload screen picks the RAG world; anything else is
+    // kinematics. Word boundaries, not includes(): "average" contains "rag",
+    // so a pasted chapter on any subject could land in the Oracle world.
+    // Twin of the same test in server/src/index.ts — keep them identical.
+    const wanted = /\brag\b/i.test(text) ? 'world-oracle-library' : defaultWorld.id;
+    console.info('[mock] createWorld', label, '→', wanted);
     return delay({ id: worldById(wanted).id });
   },
 

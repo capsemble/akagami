@@ -24,9 +24,6 @@
 <polygon points="425.0,222.5 485.0,252.5 425.0,282.5 365.0,252.5" fill="#d9a441" opacity="0.22"/>
 <polygon points="1150.0,500.0 1250.0,550.0 1150.0,600.0 1050.0,550.0" fill="#d9a441" opacity="0.22"/>
 <ellipse cx="460" cy="315" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="460" y="349" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">rane</text>
 <ellipse cx="690" cy="370" rx="30" ry="15" fill="#f4ecd8" opacity="0.3"/>
-<text x="690" y="404" fill="#f4ecd8" font-family="monospace" font-size="17" text-anchor="middle">dalvi</text>
 <ellipse cx="280" cy="235" rx="12" ry="6" fill="#3f7f2e"/>
-<text x="24" y="40" fill="#f4ecd8" font-family="monospace" font-size="26" opacity="0.8">Falling Grade — isometric placeholder</text>
 </svg>

@@ -21,6 +21,7 @@
     "typecheck": "npm run build:shared && npm -w @chapter-quest/shared run typecheck && npm -w @chapter-quest/server run typecheck && npm -w @chapter-quest/web run typecheck",
     "smoke": "npm -w @chapter-quest/server run smoke",
     "models": "npm -w @chapter-quest/server run models",
+    "paint": "npm -w @chapter-quest/server run paint",
     "design": "npm -w @chapter-quest/server run design --",
     "test": "npm -w @chapter-quest/server run test",
     "lint": "eslint .",

@@ -38,21 +38,21 @@
     "ts": 6100,
     "agent": "Mechanic agent",
     "kind": "progress",
-    "message": "Binding concepts to verbs: average speed → deduction board, braking distance → plant the marker, projectile motion → aim and launch.",
+    "message": "Binding concepts to verbs: average speed → deduction board, braking distance → the brake lever, projectile motion → aim and launch.",
     "model": "gemini-4-argon"
   },
   {
     "ts": 7800,
     "agent": "Validator",
     "kind": "rejected",
-    "message": "Rejected Act II (guessable, 64%): the win band covered most of the marker's range, so sliding it anywhere sensible worked. Repairing…",
+    "message": "Rejected Act II (guessable, 64%): the siding swallowed almost every brake you could hold, so any late grab worked. Repairing…",
     "model": "gemini-4-argon"
   },
   {
     "ts": 9300,
     "agent": "Mechanic agent",
     "kind": "repair",
-    "message": "Act II narrowed: the train must stop inside the last 12 m of the siding, so only the right marker position survives.",
+    "message": "Act II narrowed: the siding is 30 m of a 170 m grade, so only a brake judged against her speed stops her inside it.",
     "model": "gemini-4-argon"
   },
   {
@@ -66,21 +66,21 @@
     "ts": 11600,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): style locked — isometric 1950s hill railway, wet slate and teak, lantern light. Painting scene 1/3 — Ghat 9 Signal Box.",
+    "message": "Art director (Nano Banana): style plate locked — isometric 1950s hill railway, wet slate and teak, lantern light.",
     "model": "gemini-nano-banana-2.1"
   },
   {
     "ts": 13400,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): painting scene 2/3 — the Falling Grade.",
+    "message": "Art director (Nano Banana): cast painted against the plate — Rane and Dalvi, portrait and sprite each, so they look related.",
     "model": "gemini-nano-banana-2.1"
   },
   {
     "ts": 15100,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): painting scene 3/3 — the Gorge Crossing.",
+    "message": "Art director (Nano Banana): one sprite per interactable, placed on its own collider — art cannot drift from the physics.",
     "model": "gemini-nano-banana-2.1"
   },
   {
@@ -101,7 +101,7 @@
     "ts": 19900,
     "agent": "Mapper",
     "kind": "done",
-    "message": "Scene QA (Gemini Flash): walkability passed — spawn reaches the deduction board, the brake marker and the launcher.",
+    "message": "Scene QA (Gemini Flash): walkability passed — spawn reaches the deduction board, the brake lever and the launcher.",
     "model": "gemini-3.5-flash-lite"
   },
   {
