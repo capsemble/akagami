@@ -12,7 +12,10 @@ import {
   validateScript,
   validateStructure,
 } from '../src/validate.js';
-import { fakeEvaluator } from './fake-evaluator.js';
+import { compile, randomWinRate, simulate, variablesOf } from '@chapter-quest/shared';
+
+/** The real evaluator, shaped to the interface validate.ts consumes. */
+const evaluator = { compile, variablesOf, simulate, randomWinRate };
 
 const chapterText = readFileSync(
   join(repoRoot, 'server/scripts/fixtures/sample-chapter.md'),
@@ -115,7 +118,7 @@ function formulaOutline(): Outline {
 }
 
 test('a good formula act passes', () => {
-  const result = validateFormulaMechanics([formulaAct()], fakeEvaluator);
+  const result = validateFormulaMechanics([formulaAct()], evaluator);
   assert.deepEqual(result.errors, []);
   assert.equal(result.ok, true);
 });
@@ -129,7 +132,7 @@ test('a guessable act is rejected', () => {
       params: [{ name: 'flagPosition', min: 0, max: 60, default: 5, solution: 22 }],
     },
   });
-  const result = validateFormulaMechanics([act], fakeEvaluator);
+  const result = validateFormulaMechanics([act], evaluator);
   assert.equal(result.ok, false);
   assert.ok(codes(result.errors).includes('guessable'));
   assert.match(result.errors.find((e) => e.code === 'guessable')!.message, /guessable \(\d+%\)/);
@@ -144,7 +147,7 @@ test('an act whose solution does not win is rejected', () => {
       params: [{ name: 'flagPosition', min: 0, max: 60, default: 5, solution: 55 }],
     },
   });
-  const result = validateFormulaMechanics([act], fakeEvaluator);
+  const result = validateFormulaMechanics([act], evaluator);
   assert.equal(result.ok, false);
   assert.ok(codes(result.errors).includes('solution-does-not-win'));
 });
@@ -157,7 +160,7 @@ test('an act that is already solved at its default is rejected', () => {
       params: [{ name: 'flagPosition', min: 0, max: 60, default: 22, solution: 22 }],
     },
   });
-  const result = validateFormulaMechanics([act], fakeEvaluator);
+  const result = validateFormulaMechanics([act], evaluator);
   assert.equal(result.ok, false);
   assert.ok(codes(result.errors).includes('default-already-wins'));
 });
@@ -170,7 +173,7 @@ test('an expression referencing an unknown variable is rejected', () => {
       params: [{ name: 'flagPosition', min: 0, max: 60, default: 5, solution: 22 }],
     },
   });
-  const result = validateFormulaMechanics([act], fakeEvaluator);
+  const result = validateFormulaMechanics([act], evaluator);
   assert.equal(result.ok, false);
   assert.ok(codes(result.errors).includes('unknown-variable'));
 });
@@ -316,7 +319,7 @@ test('an empty gold fact is rejected', () => {
 // --- the whole thing --------------------------------------------------------
 
 test('the cached fallback script validates against the sample chapter', () => {
-  const result = validateScript({ script: fallback, chapterText, evaluator: fakeEvaluator });
+  const result = validateScript({ script: fallback, chapterText, evaluator: evaluator });
   assert.deepEqual(result.errors, []);
   assert.equal(result.ok, true);
 });

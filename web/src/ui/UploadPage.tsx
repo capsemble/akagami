@@ -56,14 +56,24 @@ export function UploadPage({ busy, error, onSubmit }: Props) {
           {busy ? 'Building the world…' : 'Build my world'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => onSubmit('demo:rag')}
-          disabled={busy}
-          style={styles.ghost}
-        >
-          Skip — play the RAG demo world
-        </button>
+        <div style={styles.demos}>
+          <button
+            type="button"
+            onClick={() => onSubmit('demo:kinematics')}
+            disabled={busy}
+            style={styles.ghost}
+          >
+            Skip — play the kinematics demo
+          </button>
+          <button
+            type="button"
+            onClick={() => onSubmit('demo:rag')}
+            disabled={busy}
+            style={styles.ghost}
+          >
+            …or the RAG one
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -108,7 +118,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.ground,
     fontWeight: 700,
   },
+  demos: { display: 'flex', gap: space.sm },
   ghost: {
+    flex: 1,
     padding: space.sm,
     borderRadius: radii.chip,
     border: `1px solid ${colors.parchment}33`,

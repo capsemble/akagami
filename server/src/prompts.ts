@@ -159,7 +159,7 @@ Act 3 (projectile, components as params so no trigonometry is needed):
         "until": "y <= 0"
       },
       "params": [
-        { "name": "launchVx", "min": 2, "max": 24, "default": 4, "solution": 14 },
+        { "name": "launchVx", "min": 2, "max": 24, "default": 4, "solution": 12 },
         { "name": "launchVy", "min": 0, "max": 16, "default": 0, "solution": 5 }
       ]
     }

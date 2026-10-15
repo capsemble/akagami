@@ -1,0 +1,27 @@
+{
+  "id": "scene-signal-box",
+  "imageUrl": "/mock-art/scene-signal-box.svg",
+  "projection": "isometric",
+  "width": 1400,
+  "height": 1100,
+  "blocked": [
+    { "x": 0, "y": 0, "w": 1400, "h": 40, "height": 120 },
+    { "x": 0, "y": 1060, "w": 1400, "h": 40, "height": 120 },
+    { "x": 0, "y": 40, "w": 40, "h": 1020, "height": 120 },
+    { "x": 1360, "y": 40, "w": 40, "h": 1020, "height": 120 },
+    { "x": 120, "y": 140, "w": 460, "h": 90, "height": 150 },
+    { "x": 900, "y": 140, "w": 360, "h": 90, "height": 150 },
+    { "x": 140, "y": 700, "w": 200, "h": 200, "height": 80 },
+    { "x": 1060, "y": 700, "w": 200, "h": 200, "height": 80 }
+  ],
+  "interactables": [
+    { "id": "deduction-board", "x": 620, "y": 150, "w": 220, "h": 80, "height": 130 },
+    { "id": "signed-timetable", "x": 560, "y": 560, "w": 160, "h": 120, "height": 40 }
+  ],
+  "exits": [{ "x": 640, "y": 1000, "w": 160, "h": 60 }],
+  "spawn": { "x": 700, "y": 860 },
+  "npcSpots": {
+    "rane": { "x": 480, "y": 430 },
+    "dalvi": { "x": 940, "y": 430 }
+  }
+}

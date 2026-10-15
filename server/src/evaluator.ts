@@ -1,12 +1,9 @@
 /**
  * Adapter over the expression evaluator in shared/expr.ts.
  *
- * The tested evaluator is still landing (see shared/expr.ts). Until it does,
- * `loadEvaluator()` returns null and the formula checks in validate.ts report
- * themselves as skipped instead of crashing the build.
- *
- * TODO(hrutik): when the real expr.ts lands, check these four signatures match
- * and delete the probing below — this file should become a plain re-export.
+ * The probe stays deliberately: if the evaluator is ever swapped or a build
+ * ships without it, the formula checks in validate.ts report themselves as
+ * skipped instead of crashing a design run.
  */
 import type { ParamSpec, SimSpec } from '@chapter-quest/shared';
 

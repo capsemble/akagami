@@ -1,3 +1,4 @@
+import './env.js'; // first, so .env is loaded before anything reads it
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +8,9 @@ import type { NpcTurn, RagRunRequest, TeachingMove } from '@chapter-quest/shared
 import { MODELS, getUsage, getUsageByModel } from './gemini.js';
 import { loadEvents, loadRagTable, loadScene, loadWorld, pickRagKey } from './mocks.js';
 import { mocksDir, webDist } from './paths.js';
+import { artFile } from './pipeline/art.js';
+import { extractFromString } from './extract.js';
+import { getJob, startDesign, watch } from './jobs.js';
 import { readFile } from 'node:fs/promises';
 
 const app = express();
@@ -42,31 +46,81 @@ app.get('/api/demo/:name', async (req, res) => {
 });
 
 /**
- * STUB: returns the demo world instead of building one.
- * The real pipeline (curriculum → story → validator → art → mapper) lands here.
+ * Build a world from a chapter.
+ *
+ * The run is long, so it starts in the background and the id comes back at
+ * once — the client opens the event stream with it and watches the thing being
+ * made. `demo:` prefixes short-circuit to the prepared fixtures, which is what
+ * the demo buttons use and what keeps a dead quota from killing a presentation.
  */
 app.post('/api/worlds', async (req: Request, res: Response) => {
   try {
     const { text, filename } = req.body ?? {};
-    console.log(
-      `[worlds] create requested: ${filename ?? 'inline text'}, ${String(text ?? '').length} chars`,
-    );
-    const world = await loadWorld();
-    res.status(202).json({ id: world.id });
+    const raw = String(text ?? '');
+    console.log(`[worlds] create: ${filename ?? 'inline text'}, ${raw.length} chars`);
+
+    const demo = /^demo:(rag|kinematics)\b/i.exec(raw.trim());
+    if (demo) {
+      const world = await loadWorld(demo[1]!.toLowerCase());
+      res.status(202).json({ id: world.id });
+      return;
+    }
+    if (raw.trim().length < 200) {
+      res.status(400).json({ error: 'That is too short to be a chapter.' });
+      return;
+    }
+
+    const chapter = extractFromString(raw, filename ?? 'inline text');
+    const id = startDesign(chapter);
+    res.status(202).json({ id });
   } catch (err) {
     fail(res, err);
   }
 });
 
-app.get('/api/worlds/:id', async (_req, res) => {
+/**
+ * Painted assets, served straight off the design cache. The names are produced
+ * by the art director, never by a request, but the path still gets checked:
+ * anything that is not a flat `<name>.png` is refused rather than resolved.
+ */
+app.get('/api/art/:hash/:file', (req, res) => {
+  const { hash, file } = req.params;
+  if (!/^[0-9a-f]{1,32}$/.test(hash) || !/^[a-z0-9-]{1,64}\.png$/.test(file)) {
+    res.status(400).json({ error: 'bad asset path' });
+    return;
+  }
+  res.sendFile(artFile(hash, file), (err) => {
+    if (err) res.status(404).json({ error: 'not painted' });
+  });
+});
+
+app.get('/api/worlds/:id', async (req, res) => {
+  const job = getJob(req.params.id);
+  if (job) {
+    if (job.world) {
+      res.json(job.world);
+    } else if (job.done) {
+      fail(res, new Error(job.error ?? 'the build produced no world'), 500);
+    } else {
+      // Still forming. The client only asks once the stream says it is done,
+      // so this is a reload mid-build rather than the normal path.
+      res.status(409).json({ error: 'still building', status: 'designing' });
+    }
+    return;
+  }
   try {
-    res.json(await loadWorld());
+    res.json(await loadWorld(req.params.id));
   } catch (err) {
     fail(res, err, 404);
   }
 });
 
 app.get('/api/worlds/:id/scenes/:sceneId', async (req, res) => {
+  const scene = getJob(req.params.id)?.scenes?.get(req.params.sceneId);
+  if (scene) {
+    res.json(scene);
+    return;
+  }
   try {
     res.json(await loadScene(req.params.sceneId));
   } catch (err) {
@@ -74,11 +128,40 @@ app.get('/api/worlds/:id/scenes/:sceneId', async (req, res) => {
   }
 });
 
-/** Real SSE, replaying the recorded build with its original gaps. */
+/**
+ * The build, as it happens. A generated world streams its agents live; a demo
+ * fixture replays its recorded build with the original gaps, which is the same
+ * shape on the wire and the same experience on screen.
+ */
 app.get('/api/worlds/:id/events', async (req, res) => {
+  const openStream = () => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write(': stream open\n\n');
+  };
+
+  const job = getJob(req.params.id);
+  if (job) {
+    openStream();
+    const stop = watch(job, (event) => {
+      if (event === null) {
+        res.write('event: end\ndata: {}\n\n');
+        res.end();
+        return;
+      }
+      res.write(`event: agent\ndata: ${JSON.stringify(event)}\n\n`);
+    });
+    req.on('close', stop);
+    return;
+  }
+
   let events;
   try {
-    events = await loadEvents();
+    events = await loadEvents(req.params.id);
   } catch (err) {
     return fail(res, err, 404);
   }

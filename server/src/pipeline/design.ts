@@ -24,6 +24,7 @@ import { MODELS } from '../gemini.js';
 import { repoRoot } from '../paths.js';
 import { validateScript } from '../validate.js';
 import type { ValidationError, ValidationResult } from '../validate.js';
+import { paintWorld } from './art.js';
 import {
   actWriterAgent,
   brief,
@@ -110,7 +111,7 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
       event(
         VALIDATOR,
         'progress',
-        'Formula checks are off: shared/expr.ts has not landed yet. Structure, grounding, content and ai-system checks still run.',
+        'Formula checks are off: no evaluator available. Structure, grounding, content and ai-system checks still run.',
       ),
     );
   }
@@ -289,11 +290,27 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
 
   await writeCache('script', hash, acts);
 
+  // Art last, and only once the script is known good: a world that failed
+  // validation is thrown away, and painting it first would be paying for
+  // pictures nobody will ever see. Nothing here can fail the run — a dead
+  // image model costs placeholders, not the world.
+  const art = await stage('art', timings, () =>
+    paintWorld({
+      hash,
+      artStyle: outline.artStyle,
+      cast: outline.cast,
+      props: propsOf(acts),
+      emit,
+      ...(options.fresh ? { fresh: true } : {}),
+    }),
+  );
+
   const script: GameScript = {
     id: `world-${hash.slice(0, 12)}`,
     curriculum: working,
     outline,
     acts,
+    art,
     sourceHash: hash,
     createdAt: new Date().toISOString(),
   };
@@ -326,6 +343,19 @@ function emitValidation(emit: Emit, validation: ValidationResult, label: string)
       `Validator rejected (${label}): ${validation.errors.length} error(s) — ${summary}${validation.errors.length > 4 ? '; …' : ''}`,
     ),
   );
+}
+
+/** Every distinct prop across the acts, so each one is painted exactly once. */
+function propsOf(acts: ActSpec[]): { id: string; label: string; look: string }[] {
+  const seen = new Map<string, { id: string; label: string; look: string }>();
+  for (const act of acts) {
+    for (const object of act.scene.objects ?? []) {
+      if (!seen.has(object.id)) {
+        seen.set(object.id, { id: object.id, label: object.label, look: object.look });
+      }
+    }
+  }
+  return [...seen.values()];
 }
 
 function emptyOutline(): Outline {

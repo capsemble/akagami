@@ -45,7 +45,24 @@
         ],
         "correctIndex": 1
       },
-      "explainAfter": "A chunk is the smallest thing retrieval can hand over. Cut smaller than a fact and no single chunk can answer the question, so the Oracle completes it from habit instead. Overlap is cheap insurance: it re-staples the seam so a fact cut in half still survives in one piece."
+      "explainAfter": "A chunk is the smallest thing retrieval can hand over. Cut smaller than a fact and no single chunk can answer the question, so the Oracle completes it from habit instead. Overlap is cheap insurance: it re-staples the seam so a fact cut in half still survives in one piece.",
+      "dialogue": [
+        {
+          "speaker": "The Archivist",
+          "mood": "neutral",
+          "line": "The wind took every scroll on the east shelf. Cut them back yourself."
+        },
+        {
+          "speaker": "The Oracle",
+          "mood": "pleased",
+          "line": "A dose of forty. I am certain of it."
+        },
+        {
+          "speaker": "The Archivist",
+          "mood": "worried",
+          "line": "Forty what? The unit is on the table behind you."
+        }
+      ]
     },
     {
       "id": "act3",
@@ -63,7 +80,24 @@
         ],
         "correctIndex": 2
       },
-      "explainAfter": "k is a budget, not a volume knob. Every extra scroll is one more thing the Oracle is allowed to believe. Reranking lets you keep the budget small and still land the gold scroll on top — fewer, better scrolls beat more, noisier ones."
+      "explainAfter": "k is a budget, not a volume knob. Every extra scroll is one more thing the Oracle is allowed to believe. Reranking lets you keep the budget small and still land the gold scroll on top — fewer, better scrolls beat more, noisier ones.",
+      "dialogue": [
+        {
+          "speaker": "The Archivist",
+          "mood": "neutral",
+          "line": "It will read whatever fits in the satchel. All of it. Equally."
+        },
+        {
+          "speaker": "The Oracle",
+          "mood": "pleased",
+          "line": "Forty milligrams, reduced from sixty, halved for younger readers."
+        },
+        {
+          "speaker": "The Archivist",
+          "mood": "worried",
+          "line": "Two of those three came from scrolls about a different library."
+        }
+      ]
     },
     {
       "id": "act4",
@@ -81,7 +115,24 @@
         ],
         "correctIndex": 1
       },
-      "explainAfter": "Grounding is a per-claim property, not a per-answer vibe. Retrieval decides what the Oracle *could* say; grounding checks what it *did* say, sentence by sentence, against the scrolls it was handed. Anything that cannot point at a scroll is a guess wearing a confident voice."
+      "explainAfter": "Grounding is a per-claim property, not a per-answer vibe. Retrieval decides what the Oracle *could* say; grounding checks what it *did* say, sentence by sentence, against the scrolls it was handed. Anything that cannot point at a scroll is a guess wearing a confident voice.",
+      "dialogue": [
+        {
+          "speaker": "The Oracle",
+          "mood": "pleased",
+          "line": "Forty milligrams at dusk. The Binder approved the change himself."
+        },
+        {
+          "speaker": "The Archivist",
+          "mood": "neutral",
+          "line": "Show me the scroll that says so."
+        },
+        {
+          "speaker": "The Oracle",
+          "mood": "worried",
+          "line": "I have no scroll for the second part."
+        }
+      ]
     }
   ]
 }

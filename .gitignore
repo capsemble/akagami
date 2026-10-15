@@ -9,3 +9,5 @@ tmp/
 
 # design-stage cache (sha256 of chapter text)
 server/.cache/
+
+akagami/node_modules/

@@ -1,16 +1,30 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
-import type { Scene as WorldSceneData } from '@chapter-quest/shared';
+import type { ActStage, ParamSpec, SimSpec, Scene as WorldSceneData } from '@chapter-quest/shared';
 import { WorldScene } from './WorldScene';
 
 interface Props {
   scene: WorldSceneData;
+  /** How this act is staged. Absent leaves the scene a plain walkable room. */
+  stage?: ActStage | null;
+  params?: ParamSpec[];
+  /** The physics, for an act the player drives live. */
+  spec?: SimSpec | null;
+  /** The winning span along the playback path, in that path's units. */
+  target?: { from: number; to: number; label?: string } | null;
   /** True while a React panel is on top, so the player stops walking behind it. */
   paused?: boolean;
 }
 
-/** Mounts one Phaser game and hands it the scene data. Events come back on gameBus. */
-export function PhaserGame({ scene, paused = false }: Props) {
+/** Mounts one Phaser game and hands it the act. Events go both ways on gameBus. */
+export function PhaserGame({
+  scene,
+  stage = null,
+  params,
+  spec = null,
+  target = null,
+  paused = false,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
 
@@ -31,13 +45,13 @@ export function PhaserGame({ scene, paused = false }: Props) {
 
     // add(key, scene, autoStart, data) — the only form that guarantees init()
     // gets the data, whether or not the game has finished booting.
-    game.scene.add(WorldScene.KEY, WorldScene, true, { scene });
+    game.scene.add(WorldScene.KEY, WorldScene, true, { scene, stage, params, spec, target });
 
     return () => {
       gameRef.current = null;
       game.destroy(true);
     };
-  }, [scene]);
+  }, [scene, stage, params, spec, target]);
 
   useEffect(() => {
     const manager = gameRef.current?.scene;
