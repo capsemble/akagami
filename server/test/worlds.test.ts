@@ -61,3 +61,41 @@ test('the kinematics acts all carry a formula mechanic with sane dials', async (
     }
   }
 });
+
+/**
+ * Regression: the build story streamed on the world-forming screen was a single
+ * hardcoded RAG trace, so picking the kinematics demo still played 21 seconds of
+ * "The Oracle of the Old Library" before dropping you into Ghat 9.
+ */
+test('each world streams its own build story', async () => {
+  const { loadEvents } = await import('../src/mocks.js');
+
+  const kinematics = await loadEvents('world-ghat-9');
+  const rag = await loadEvents('world-oracle-library');
+
+  assert.match(kinematics[0]!.message, /Rest and Motion/);
+  assert.match(rag[0]!.message, /Retrieval-Augmented/);
+
+  const oracleish = /oracle|\bRAG\b|scroll|satchel|scriptorium/i;
+  assert.equal(
+    kinematics.filter((e) => oracleish.test(e.message)).length,
+    0,
+    'the kinematics trace must not mention the RAG world',
+  );
+
+  const defaulted = await loadEvents();
+  assert.equal(defaulted[0]!.message, kinematics[0]!.message, 'the default trace is kinematics');
+});
+
+test('both traces keep their timings and their model chips', async () => {
+  const { loadEvents } = await import('../src/mocks.js');
+  for (const id of ['world-ghat-9', 'world-oracle-library']) {
+    const events = await loadEvents(id);
+    assert.equal(events.length, 16, `${id} should still be 16 events`);
+    assert.equal(events[events.length - 1]!.ts, 21000, `${id} should still end at 21s`);
+    assert.ok(
+      events.every((e) => typeof e.model === 'string' && e.model.length > 0),
+      `${id} events should all carry a model`,
+    );
+  }
+});

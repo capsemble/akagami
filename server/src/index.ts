@@ -87,7 +87,7 @@ app.get('/api/worlds/:id/scenes/:sceneId', async (req, res) => {
 app.get('/api/worlds/:id/events', async (req, res) => {
   let events;
   try {
-    events = await loadEvents();
+    events = await loadEvents(req.params.id);
   } catch (err) {
     return fail(res, err, 404);
   }

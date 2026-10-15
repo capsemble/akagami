@@ -17,7 +17,8 @@ import signalBox from '@mocks/scenes/scene-signal-box.json';
 import fallingGrade from '@mocks/scenes/scene-falling-grade.json';
 import gorge from '@mocks/scenes/scene-gorge.json';
 import ragJson from '@mocks/rag.json';
-import eventsJson from '@mocks/agent-events.json';
+import kinematicsEventsJson from '@mocks/agent-events.kinematics.json';
+import ragEventsJson from '@mocks/agent-events.rag.json';
 import npcJson from '@mocks/npc.json';
 import teachingJson from '@mocks/teaching-move.json';
 import type { AdaptRequest, ApiClient, NpcTurnRequest } from './types';
@@ -29,7 +30,14 @@ const scenes = [signalBox, fallingGrade, gorge, scriptorium, stacks, sanctum] as
 
 const worldById = (id: string): World => worlds.find((w) => w.id === id) ?? defaultWorld;
 const ragTable = ragJson as unknown as Record<string, RagRunResponse>;
-const events = eventsJson as unknown as AgentEvent[];
+const eventsByWorld: Record<string, AgentEvent[]> = {
+  'world-ghat-9': kinematicsEventsJson as unknown as AgentEvent[],
+  'world-oracle-library': ragEventsJson as unknown as AgentEvent[],
+};
+
+/** The build story has to be the story of the world being built. */
+const eventsFor = (worldId: string): AgentEvent[] =>
+  eventsByWorld[worldId] ?? eventsByWorld[defaultWorld.id] ?? [];
 
 /** Network that isn't there. Keeps loading states honest in mock mode. */
 const latency = () => 300 + Math.random() * 500;
@@ -67,11 +75,11 @@ export const mockApi: ApiClient = {
     return delay(scene);
   },
 
-  streamEvents(_worldId, onEvent) {
+  streamEvents(worldId, onEvent) {
     const timers: ReturnType<typeof setTimeout>[] = [];
     let previous = 0;
     let elapsed = 0;
-    for (const event of events) {
+    for (const event of eventsFor(worldId)) {
       elapsed += Math.max(0, event.ts - previous);
       previous = event.ts;
       timers.push(setTimeout(() => onEvent(event), elapsed));

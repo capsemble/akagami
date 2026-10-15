@@ -29,7 +29,17 @@ export async function loadWorld(idOrName: string = DEFAULT_WORLD_ID): Promise<Wo
   return readJson<World>(file);
 }
 export const loadScene = (sceneId: string) => readJson<Scene>('scenes', `${sceneId}.json`);
-export const loadEvents = () => readJson<AgentEvent[]>('agent-events.json');
+const EVENTS: Record<string, string> = {
+  'world-ghat-9': 'agent-events.kinematics.json',
+  kinematics: 'agent-events.kinematics.json',
+  'world-oracle-library': 'agent-events.rag.json',
+  rag: 'agent-events.rag.json',
+};
+
+/** The build story has to be the story of the world being built. */
+export function loadEvents(idOrName: string = DEFAULT_WORLD_ID): Promise<AgentEvent[]> {
+  return readJson<AgentEvent[]>(EVENTS[idOrName] ?? EVENTS[DEFAULT_WORLD_ID]!);
+}
 export const loadRagTable = () => readJson<Record<string, RagRunResponse>>('rag.json');
 
 /**

@@ -1,0 +1,114 @@
+[
+  {
+    "ts": 0,
+    "agent": "Orchestrator",
+    "kind": "start",
+    "message": "Chapter received: Concepts of Physics — Ch. 3, \"Rest and Motion: Kinematics\" — 42 pages, 11 worked examples.",
+    "model": "gemini-3.8-flash"
+  },
+  {
+    "ts": 900,
+    "agent": "Curriculum agent",
+    "kind": "progress",
+    "message": "Curriculum agent (Gemini 4 Argon): reading chapter. Splitting into teachable units…",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 2600,
+    "agent": "Curriculum agent",
+    "kind": "done",
+    "message": "Curriculum agent (Gemini 4 Argon): found 5 concepts, 8 misconceptions. Top misconception: \"average speed tells you the speed at every moment\".",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 3400,
+    "agent": "Writers' room",
+    "kind": "progress",
+    "message": "Writers' room (Gemini 4 Argon): 2 drafts written; judge kept draft B (13/15).",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 5200,
+    "agent": "Story agent",
+    "kind": "done",
+    "message": "Story agent (Gemini 4 Argon): world is \"The Ghost of Ghat 9\". A monsoon hill railway, a bandit with an alibi, and a timetable signed by the man reading it to you.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 6100,
+    "agent": "Mechanic agent",
+    "kind": "progress",
+    "message": "Binding concepts to verbs: average speed → deduction board, braking distance → plant the marker, projectile motion → aim and launch.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 7800,
+    "agent": "Validator",
+    "kind": "rejected",
+    "message": "Rejected Act II (guessable, 64%): the win band covered most of the marker's range, so sliding it anywhere sensible worked. Repairing…",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 9300,
+    "agent": "Mechanic agent",
+    "kind": "repair",
+    "message": "Act II narrowed: the train must stop inside the last 12 m of the siding, so only the right marker position survives.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 10700,
+    "agent": "Validator",
+    "kind": "done",
+    "message": "Re-scored: Act II guessable 20%. Solution wins, default loses, all three acts concept-necessary.",
+    "model": "gemini-4-argon"
+  },
+  {
+    "ts": 11600,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): style locked — isometric 1950s hill railway, wet slate and teak, lantern light. Painting scene 1/3 — Ghat 9 Signal Box.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 13400,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): painting scene 2/3 — the Falling Grade.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 15100,
+    "agent": "Art director",
+    "kind": "progress",
+    "message": "Art director (Nano Banana): painting scene 3/3 — the Gorge Crossing.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 16800,
+    "agent": "Cast agent",
+    "kind": "done",
+    "message": "Cast sheet: Inspector Rane (3 moods), Station Master Dalvi (3 moods). Dalvi personifies the misconception, so he stays likeable.",
+    "model": "gemini-nano-banana-2.1"
+  },
+  {
+    "ts": 18200,
+    "agent": "Mapper",
+    "kind": "progress",
+    "message": "Tracing isometric colliders from scene art: 8 blocked volumes, 2 interactables, 1 exit per scene.",
+    "model": "gemini-3.5-flash-lite"
+  },
+  {
+    "ts": 19900,
+    "agent": "Mapper",
+    "kind": "done",
+    "message": "Scene QA (Gemini Flash): walkability passed — spawn reaches the deduction board, the brake marker and the launcher.",
+    "model": "gemini-3.5-flash-lite"
+  },
+  {
+    "ts": 21000,
+    "agent": "Orchestrator",
+    "kind": "done",
+    "message": "World ready. 3 acts, 3 isometric scenes, 2 characters. Step into the signal box.",
+    "model": "gemini-3.8-flash"
+  }
+]
