@@ -23,6 +23,7 @@
  */
 import type {
   ActStage,
+  Interactable,
   Mechanic,
   ParamBinding,
   ParamSpec,
@@ -35,7 +36,7 @@ import type {
   Verb,
   WorldPath,
 } from '@chapter-quest/shared';
-import { compile, simulate } from '@chapter-quest/shared';
+import { compile, propFootprint, simulate } from '@chapter-quest/shared';
 
 const WALL = 40;
 /** Keeps props off the walls so the player can always walk behind them. */
@@ -126,27 +127,53 @@ function exitRect(side: SceneSpec['exitSide'], width: number, height: number): R
 /**
  * Objects along the far side of a room, or down the length of a hall. Both keep
  * the middle clear, because the middle is where the act is played.
+ *
+ * Each object is sized by what it is: `propFootprint` reads the design pass's
+ * own words for it, so a notice board gets a wide shallow rect and a pillar a
+ * square one, and the renderer draws into that same rect. The label and look
+ * ride along for the same reason — without them every prop in a generated room
+ * is the identical box in a different colour.
  */
 function placeObjects(
   spec: SceneSpec,
   ctx: { width: number; height: number; isRun: boolean; seed: number },
-): (Rect & { id: string })[] {
+): Interactable[] {
   const objects = spec.objects ?? [];
   if (objects.length === 0) return [];
 
   const left = WALL + MARGIN;
-  const right = ctx.width - WALL - MARGIN - PROP.w;
-  const span = Math.max(0, right - left);
+  const span = Math.max(0, ctx.width - WALL - MARGIN - left);
 
+  // Pack the row with whatever is left over as even gaps. If the widths the
+  // props asked for do not fit, every one of them shrinks to make them fit:
+  // props that overlap mean E picks whichever the loop happened to see first.
+  const wanted = objects.map((object) => propFootprint(object, PROP));
+  const asked = wanted.reduce((sum, size) => sum + size.w, 0);
+  const sizes =
+    asked <= span
+      ? wanted
+      : wanted.map((size) => ({ ...size, w: Math.max(60, Math.floor((size.w * span) / asked)) }));
+  const used = sizes.reduce((sum, size) => sum + size.w, 0);
+  const gap = objects.length > 1 ? Math.max(0, (span - used) / (objects.length - 1)) : 0;
+
+  let x = objects.length === 1 ? left + (span - used) / 2 : left;
   return objects.map((object, i) => {
-    const t = objects.length === 1 ? 0.5 : i / (objects.length - 1);
-    const x = Math.round(left + span * t);
+    const size = sizes[i]!;
     // A hall keeps everything north of the lane; a room alternates rows so
     // four objects do not end up in a single line across the back.
     const y = ctx.isRun
       ? Math.round(ctx.height * 0.26)
       : Math.round(ctx.height * (i % 2 === 0 ? 0.16 : 0.44));
-    return { id: object.id, x, y, w: PROP.w, h: PROP.h, height: PROP.height };
+    const placed: Interactable = {
+      id: object.id,
+      label: object.label,
+      look: object.look,
+      x: Math.round(x),
+      y,
+      ...size,
+    };
+    x += size.w + gap;
+    return placed;
   });
 }
 
@@ -177,7 +204,7 @@ function placeCast(
     width: number;
     height: number;
     isRun: boolean;
-    interactables: (Rect & { id: string })[];
+    interactables: Interactable[];
     spawn: Point;
   },
 ): Record<string, Point> {
@@ -195,7 +222,7 @@ function cornerFurniture(
   width: number,
   height: number,
   seed: number,
-  interactables: (Rect & { id: string })[],
+  interactables: Interactable[],
   spawn: Point,
 ): Rect[] {
   const size = 150 + (seed % 3) * 30;

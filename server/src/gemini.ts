@@ -139,37 +139,64 @@ export function gemini(): GoogleGenAI {
 }
 
 /** 429 and 5xx are worth another go; 400s are our bug and are not retried. */
-function isRetryable(err: unknown): boolean {
+/**
+ * Why a call failed, because the two recoverable reasons want very different
+ * patience. A capacity spike ("this model is currently experiencing high
+ * demand") clears in seconds to a minute, so waiting is the correct response.
+ * A spent daily quota will not clear today, so waiting only delays the
+ * fallback to another model. Treating both as one three-second retry meant a
+ * design run died on a 503 that would have cleared on the next attempt.
+ */
+export type FailureKind = 'overload' | 'quota' | 'fatal';
+
+export function classifyFailure(err: unknown): FailureKind {
   const e = err as { status?: number; code?: number; message?: string };
   const status = e?.status ?? e?.code;
-  if (typeof status === 'number') return status === 429 || status >= 500;
-  return /\b(429|500|502|503|504)\b|RESOURCE_EXHAUSTED|UNAVAILABLE/i.test(e?.message ?? '');
+  const message = e?.message ?? '';
+  if (status === 429 || /\b429\b|RESOURCE_EXHAUSTED/i.test(message)) return 'quota';
+  if (
+    (typeof status === 'number' && status >= 500) ||
+    /\b(500|502|503|504)\b|UNAVAILABLE|high demand/i.test(message)
+  ) {
+    return 'overload';
+  }
+  return 'fatal';
+}
+
+/** Attempts and backoff per failure kind. */
+export function retryPlan(kind: FailureKind, attempt: number): { retry: boolean; waitMs: number } {
+  if (kind === 'overload') {
+    // ~40s of patience in total, which covers the spikes we actually see.
+    return attempt < 5
+      ? { retry: true, waitMs: Math.min(12_000, 1000 * 2 ** attempt) }
+      : { retry: false, waitMs: 0 };
+  }
+  if (kind === 'quota') {
+    // One quick retry in case it was a per-minute limit, then hand over to the
+    // fallback model: a per-day limit is not going to clear while we wait.
+    return attempt < 1 ? { retry: true, waitMs: 800 } : { retry: false, waitMs: 0 };
+  }
+  return { retry: false, waitMs: 0 };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function withRetry<T>(
-  label: string,
-  model: string,
-  fn: () => Promise<T>,
-  attempts = 4,
-): Promise<T> {
-  let lastErr: unknown;
-  for (let i = 0; i < attempts; i++) {
+async function withRetry<T>(label: string, model: string, fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
     try {
       spendCall(model);
       return await fn();
     } catch (err) {
-      lastErr = err;
-      if (!isRetryable(err) || i === attempts - 1) break;
-      const backoff = 500 * 2 ** i + Math.floor(Math.random() * 250);
+      const kind = classifyFailure(err);
+      const { retry, waitMs } = retryPlan(kind, attempt);
+      if (!retry) throw err;
+      const jitter = Math.floor(Math.random() * 250);
       console.warn(
-        `[gemini] ${label} failed (attempt ${i + 1}/${attempts}), retrying in ${backoff}ms`,
+        `[gemini] ${label} ${kind} on ${model} (attempt ${attempt + 1}), retrying in ${waitMs + jitter}ms`,
       );
-      await sleep(backoff);
+      await sleep(waitMs + jitter);
     }
   }
-  throw lastErr;
 }
 
 function countTokens(model: string, res: { usageMetadata?: { totalTokenCount?: number } }): void {
@@ -249,9 +276,16 @@ export async function generateJson<T>(
     });
 
   if (role === 'design') {
+    // Both attempts go through withRetry. Without it the design role was the
+    // one path in this file with no retry at all: a single 503 on the fallback
+    // model ended the call, and with it the writers' room and the whole run.
+    const attempt = (modelId: string) =>
+      withRetry(`design on ${modelId}`, modelId, () =>
+        withTimeout(DESIGN_TIMEOUT_MS, `design call on ${modelId}`, call(modelId)),
+      );
+
     try {
-      spendCall(model);
-      const res = await withTimeout(DESIGN_TIMEOUT_MS, `design call on ${model}`, call(model));
+      const res = await attempt(model);
       countTokens(model, res);
       return parseJson<T>(res.text ?? '');
     } catch (err) {
@@ -263,11 +297,10 @@ export async function generateJson<T>(
         ts: Date.now(),
         agent: opts.agent ?? 'Design agent',
         kind: 'fallback',
-        message: `${model} failed (${reason}). Retrying once on ${MODELS.text}.`,
+        message: `${model} failed (${reason}). Falling back to ${MODELS.text}.`,
         model: MODELS.text,
       });
-      spendCall(MODELS.text);
-      const res = await call(MODELS.text);
+      const res = await attempt(MODELS.text);
       countTokens(MODELS.text, res);
       return parseJson<T>(res.text ?? '');
     }

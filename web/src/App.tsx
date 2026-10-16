@@ -13,6 +13,7 @@ import { SIM_AVAILABLE, defaultDials, runSim } from './api/sim';
 import type { FormulaMechanic, SimOutcome } from './api/sim';
 import { gameBus } from './game/bus';
 import { PhaserGame } from './game/PhaserGame';
+import { sfx } from './game/sfx';
 import { AgentTracePanel } from './ui/AgentTracePanel';
 import { DioramaSlot } from './ui/DioramaSlot';
 import { DialogBox } from './ui/DialogBox';
@@ -55,6 +56,8 @@ export default function App() {
   const [ragBusy, setRagBusy] = useState(false);
 
   const [simOpen, setSimOpen] = useState(false);
+  /** Mirrors the engine's own flag, which is what survives a reload. */
+  const [muted, setMuted] = useState(sfx.isMuted);
   const [dials, setDials] = useState<Record<string, number>>({});
   const [simOutcome, setSimOutcome] = useState<SimOutcome | null>(null);
   /** True once the scene has finished acting the run out and the verdict can show. */
@@ -64,6 +67,8 @@ export default function App() {
   /** Acts the player has actually beaten. Nothing opens until the one before it. */
   const [solved, setSolved] = useState<string[]>([]);
   const [endingOpen, setEndingOpen] = useState(false);
+  /** Dismissed the "this is not your chapter" notice. */
+  const [substitutionSeen, setSubstitutionSeen] = useState(false);
 
   const act: Act | null = world?.acts[actIndex] ?? null;
   const formula: FormulaMechanic | null = act?.mechanic?.type === 'formula' ? act.mechanic : null;
@@ -326,6 +331,7 @@ export default function App() {
       {scene ? (
         <PhaserGame
           scene={scene}
+          cast={world?.cast}
           stage={stage}
           {...(formula ? { params: formula.params, spec: formula.spec } : {})}
           target={target}
@@ -334,6 +340,20 @@ export default function App() {
       ) : (
         <p style={styles.loading}>painting the scene…</p>
       )}
+
+      {world?.substituted && !substitutionSeen ? (
+        <div style={styles.substituted}>
+          <strong style={{ color: colors.fail }}>Not your chapter.</strong>
+          <span style={styles.verdictText}>{world.substituted}</span>
+          <button
+            type="button"
+            onClick={() => setSubstitutionSeen(true)}
+            style={styles.verdictButton}
+          >
+            got it
+          </button>
+        </div>
+      ) : null}
 
       <header style={styles.hud}>
         <div style={styles.hudText}>
@@ -389,13 +409,23 @@ export default function App() {
                   ? 'F to let her go again — your last runs stay on the track.'
                   : 'R to reset and try it differently.'))}
           </span>
-          <button type="button" onClick={() => setSimOpen(true)} style={styles.verdictButton}>
+          <button
+            type="button"
+            onClick={() => {
+              sfx.open();
+              setSimOpen(true);
+            }}
+            style={styles.verdictButton}
+          >
             show me why
           </button>
           {verdict && !lastAct ? (
             <button
               type="button"
-              onClick={() => setActIndex((i) => i + 1)}
+              onClick={() => {
+                sfx.chapter();
+                setActIndex((i) => i + 1);
+              }}
               style={{ ...styles.verdictButton, borderColor: colors.gold, color: colors.gold }}
             >
               next act ▸
@@ -406,13 +436,21 @@ export default function App() {
 
       <div style={styles.keyHint}>
         {stage
-          ? 'WASD move · E act · F run · R reset · T trace'
-          : 'WASD move · E interact · T trace'}
+          ? 'WASD move · E act · F run · R reset · M sound · T trace'
+          : 'WASD move · E interact · M sound · T trace'}
         {dialogue.length > 0 ? (
           <button type="button" onClick={() => setLine(0)} style={styles.replay}>
             replay dialogue
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => setMuted(sfx.toggle())}
+          style={styles.replay}
+          aria-label={muted ? 'turn sound on' : 'turn sound off'}
+        >
+          {muted ? 'sound off' : 'sound on'}
+        </button>
       </div>
 
       {traceOpen ? (
@@ -432,7 +470,10 @@ export default function App() {
             staged={stage !== null}
             onChange={setDials}
             onRun={handleRunSim}
-            onClose={() => setSimOpen(false)}
+            onClose={() => {
+              sfx.close();
+              setSimOpen(false);
+            }}
           />
         </div>
       ) : null}
@@ -459,7 +500,10 @@ export default function App() {
             busy={ragBusy}
             onChange={setRagParams}
             onRun={runRag}
-            onClose={() => setRagOpen(false)}
+            onClose={() => {
+              sfx.close();
+              setRagOpen(false);
+            }}
           />
         </div>
       ) : null}
@@ -588,6 +632,23 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#0b0806f2',
   },
   verdictText: { fontSize: 13, lineHeight: 1.45, color: `${colors.parchment}cc` },
+  // A world that is not built from the uploaded chapter has to say so, loudly
+  // and once. Silent substitution is indistinguishable from a broken upload.
+  substituted: {
+    position: 'absolute',
+    bottom: space.lg,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 5,
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.sm,
+    maxWidth: 'min(720px, 92vw)',
+    padding: `${space.sm}px ${space.md}px`,
+    borderRadius: radii.chip,
+    border: `1px solid ${colors.fail}`,
+    background: '#0b0806f2',
+  },
   measured: {
     flexShrink: 0,
     fontFamily: fonts.header,

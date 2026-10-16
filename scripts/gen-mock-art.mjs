@@ -133,9 +133,20 @@ function isoSceneSvg(scene) {
     `<polygon points="${poly({ x: 0, y: 0, w: scene.width, h: scene.height })}" fill="${C.ground}"/>`,
   );
 
-  // Tile grid, so distance is readable while walking.
+  // Tiled in two shades, not flat: on an isometric plane one colour gives the
+  // eye nothing to measure against, so you cannot tell two metres from twenty.
   const tile = 200;
-  parts.push('<g stroke="#2d1e12" stroke-width="1.5" opacity="0.65">');
+  for (let x = 0; x < scene.width; x += tile) {
+    for (let y = 0; y < scene.height; y += tile) {
+      if (((x / tile + y / tile) | 0) % 2 === 0) continue;
+      const w1 = Math.min(tile, scene.width - x);
+      const h1 = Math.min(tile, scene.height - y);
+      parts.push(`<polygon points="${poly({ x, y, w: w1, h: h1 })}" fill="${C.groundAlt}"/>`);
+    }
+  }
+
+  // Joints over the tiles, so the seams read at any zoom.
+  parts.push('<g stroke="#3a2715" stroke-width="1.5" opacity="0.5">');
   for (let x = 0; x <= scene.width; x += tile) {
     parts.push(
       `<line x1="${pt(x, 0).split(',')[0]}" y1="${pt(x, 0).split(',')[1]}" x2="${pt(x, scene.height).split(',')[0]}" y2="${pt(x, scene.height).split(',')[1]}"/>`,
@@ -148,31 +159,59 @@ function isoSceneSvg(scene) {
   }
   parts.push('</g>');
 
-  for (const e of scene.exits) {
-    parts.push(`<polygon points="${poly(e)}" fill="${C.lapis}" opacity="0.8"/>`);
-    const c = isoProject(e.x + e.w / 2, e.y + e.h / 2, view);
-    parts.push(
-      `<text x="${c.x.toFixed(0)}" y="${c.y.toFixed(0)}" fill="${C.parchment}" font-family="monospace" font-size="16" text-anchor="middle">exit</text>`,
-    );
-  }
-
-  // Footprint tints only — the solid is drawn at runtime.
-  for (const it of scene.interactables) {
-    parts.push(`<polygon points="${poly(it)}" fill="${C.gold}" opacity="0.22"/>`);
-  }
-
-  for (const [id, p] of Object.entries(scene.npcSpots)) {
-    const c = isoProject(p.x, p.y, view);
-    const fill = id === 'oracle' ? C.oracle : C.parchment;
-    parts.push(
-      `<ellipse cx="${c.x.toFixed(0)}" cy="${c.y.toFixed(0)}" rx="30" ry="15" fill="${fill}" opacity="0.3"/>`,
-    );
-  }
-
-  const s = isoProject(scene.spawn.x, scene.spawn.y, view);
+  // A skirting inside the walls: the floor meeting something is what tells you
+  // the room has edges rather than fading out.
+  const inset = 28;
   parts.push(
-    `<ellipse cx="${s.x.toFixed(0)}" cy="${s.y.toFixed(0)}" rx="12" ry="6" fill="${C.success}"/>`,
+    `<polygon points="${poly({ x: inset, y: inset, w: scene.width - inset * 2, h: scene.height - inset * 2 })}" fill="none" stroke="#4a3426" stroke-width="3" opacity="0.55"/>`,
   );
+
+  // A way out, lit. A flat blue rectangle on the floor is the one thing in the
+  // room that looks like a bug rather than a place, so it gets a warm threshold
+  // and a chevron pointing the way it leads.
+  for (const e of scene.exits) {
+    for (const [k, fill, opacity] of [
+      [0, '#6b4a22', 0.75],
+      [0.14, '#a8762f', 0.7],
+      [0.3, '#e0b35e', 0.6],
+    ]) {
+      const r = { x: e.x + e.w * k, y: e.y + e.h * k, w: e.w * (1 - 2 * k), h: e.h * (1 - 2 * k) };
+      parts.push(`<polygon points="${poly(r)}" fill="${fill}" opacity="${opacity}"/>`);
+    }
+    const cx = e.x + e.w / 2;
+    const cy = e.y + e.h / 2;
+    // Point the chevron at whichever wall the exit is nearest.
+    const out = [
+      { away: cy, to: { x: 0, y: -1 } },
+      { away: scene.height - cy, to: { x: 0, y: 1 } },
+      { away: cx, to: { x: -1, y: 0 } },
+      { away: scene.width - cx, to: { x: 1, y: 0 } },
+    ].reduce((nearest, side) => (side.away < nearest.away ? side : nearest)).to;
+    const reach = Math.min(e.w, e.h) * 0.7;
+    const side = { x: -out.y, y: out.x };
+    const chevron = [
+      pt(
+        cx - out.x * reach * 0.1 + side.x * reach * 0.6,
+        cy - out.y * reach * 0.1 + side.y * reach * 0.6,
+      ),
+      pt(cx + out.x * reach, cy + out.y * reach),
+      pt(
+        cx - out.x * reach * 0.1 - side.x * reach * 0.6,
+        cy - out.y * reach * 0.1 - side.y * reach * 0.6,
+      ),
+    ].join(' ');
+    parts.push(
+      `<polyline points="${chevron}" fill="none" stroke="${C.parchment}" stroke-width="5" opacity="0.8"/>`,
+    );
+  }
+
+  // Nothing under the interactables: the runtime draws a ring there that lights
+  // up when the player is in reach, and two overlapping tints read as a smudge.
+
+  // Nothing under the cast and nothing on the spawn: the runtime stands real
+  // figures there and draws their shadows with them, and a painted ellipse
+  // underneath only shows up as a smudge they never quite stand on.
+
   parts.push('</svg>');
   return parts.join('\n');
 }

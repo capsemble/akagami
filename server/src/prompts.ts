@@ -3,6 +3,7 @@
  * in one diff instead of scattered across the agents.
  */
 import type { Concept, Curriculum, Outline, OutlineAct } from '@chapter-quest/shared';
+import type { FilmRegister } from './registers.js';
 import type { ValidationError } from './validate.js';
 
 /**
@@ -290,12 +291,56 @@ Rules:
   };
 }
 
-export function writersRoomPrompt(curriculum: Curriculum, draft: 'A' | 'B'): PromptPair {
+/**
+ * The genre brief handed to one draft.
+ *
+ * Without it the room writes nowhere-fiction: a generic library, a generic
+ * railway, a villain called The Binder. With it the same curriculum comes back
+ * as a film someone would actually sit through.
+ */
+function registerBrief(register: FilmRegister): string {
+  return `FILM REGISTER — write this draft as ${register.name}.
+
+This is the genre the world has to live in. It decides who is in the room, what
+the weather is doing and what kind of person turns out to be behind it. It does
+NOT decide what the player learns: the concepts, the mechanics and the thing the
+player has to understand all come from the chapter, unchanged.
+
+Setting: ${register.world}
+Cast to draw from: ${register.cast}
+The villain in this genre: ${register.villain}
+The shape of the twist: ${register.twist}
+Art direction: ${register.look}
+Places this genre gives you: ${register.places}
+
+How to use it:
+- Write ORIGINAL characters with their own names, in these archetypes. Do not
+  name, quote or reproduce characters from real films — write the scarred dacoit
+  chief above your own village, not someone else's.
+- The archetypes are a cast list, not a checklist. Three or four people, named,
+  specific, with one physical detail each you could draw.
+- Names and places should sound like they belong to the world: Indian names,
+  Indian towns, Indian weather. Avoid airport-novel English surnames.
+- The register's villain and twist shapes are patterns, not scripts. Fill them
+  with this chapter's actual misconception — the person who is wrong about the
+  concept is the one the twist should turn on.
+- "artStyle" must follow the art direction above, in one sentence.
+- A register is a skin over real physics. If the genre and the concept pull in
+  different directions, the concept wins and the genre bends.`;
+}
+
+export function writersRoomPrompt(
+  curriculum: Curriculum,
+  draft: 'A' | 'B',
+  register: FilmRegister,
+): PromptPair {
   return {
     system: `You are the writers' room for Chapter Quest. You turn a curriculum into the
 outline of a short story-driven 2D RPG that a player wins by using the concepts.
 
 ${WRITERS_ROOM_RULES}
+
+${registerBrief(register)}
 
 ${GOLD_GHAT_9}
 
@@ -304,9 +349,9 @@ ${GOLD_ORACLE}
 ${BAD_EXAMPLE}
 
 Return ONE outline. Produce at most 3 acts, one per concept, choosing the 3
-concepts that make the best game. Draft ${draft}: commit to a distinct setting and
-villain — do not hedge between two ideas.`,
-    prompt: `Curriculum:\n${JSON.stringify(curriculum, null, 2)}\n\nWrite outline draft ${draft}.`,
+concepts that make the best game. Draft ${draft}: commit to this register and to
+one villain — do not hedge between two ideas.`,
+    prompt: `Curriculum:\n${JSON.stringify(curriculum, null, 2)}\n\nWrite outline draft ${draft} as ${register.name}.`,
   };
 }
 
@@ -336,7 +381,8 @@ export function actPrompt(outline: Outline, concept: Concept, act: OutlineAct): 
   return {
     system: `You are the act writer for Chapter Quest. You expand one act of an agreed
 outline into a playable spec. The outline is fixed — do not rename the world,
-the villain or the cast.
+the villain or the cast, and keep the register the outline is written in: the
+same weather, the same kind of place, the same voices.
 
 ${WRITERS_ROOM_RULES}
 

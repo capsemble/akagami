@@ -1,10 +1,19 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
-import type { ActStage, ParamSpec, SimSpec, Scene as WorldSceneData } from '@chapter-quest/shared';
+import type {
+  ActStage,
+  Character,
+  ParamSpec,
+  SimSpec,
+  Scene as WorldSceneData,
+} from '@chapter-quest/shared';
 import { WorldScene } from './WorldScene';
 
 interface Props {
   scene: WorldSceneData;
+  /** Who stands in the room. The scene says where; this says who and what they
+   *  look like. */
+  cast?: Character[];
   /** How this act is staged. Absent leaves the scene a plain walkable room. */
   stage?: ActStage | null;
   params?: ParamSpec[];
@@ -19,6 +28,7 @@ interface Props {
 /** Mounts one Phaser game and hands it the act. Events go both ways on gameBus. */
 export function PhaserGame({
   scene,
+  cast,
   stage = null,
   params,
   spec = null,
@@ -45,13 +55,13 @@ export function PhaserGame({
 
     // add(key, scene, autoStart, data) — the only form that guarantees init()
     // gets the data, whether or not the game has finished booting.
-    game.scene.add(WorldScene.KEY, WorldScene, true, { scene, stage, params, spec, target });
+    game.scene.add(WorldScene.KEY, WorldScene, true, { scene, cast, stage, params, spec, target });
 
     return () => {
       gameRef.current = null;
       game.destroy(true);
     };
-  }, [scene, stage, params, spec, target]);
+  }, [scene, cast, stage, params, spec, target]);
 
   useEffect(() => {
     const manager = gameRef.current?.scene;

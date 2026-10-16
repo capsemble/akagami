@@ -22,6 +22,7 @@ import { loadEvaluator } from '../evaluator.js';
 import type { ExtractedChapter } from '../extract.js';
 import { MODELS } from '../gemini.js';
 import { repoRoot } from '../paths.js';
+import { registersFor } from '../registers.js';
 import { validateScript } from '../validate.js';
 import type { ValidationError, ValidationResult } from '../validate.js';
 import { paintWorld } from './art.js';
@@ -174,21 +175,49 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
         return cached;
       }
     }
-    const [a, b] = await Promise.all([
-      writersRoomAgent.run({ curriculum: working, draft: 'A' }, emit),
-      writersRoomAgent.run({ curriculum: working, draft: 'B' }, emit),
+    // allSettled, not all: the second draft exists so there is a choice, and
+    // losing one to an overloaded model should cost the choice, not the run.
+    // Promise.all rejected the whole stage the instant either draft failed —
+    // including one case where the surviving draft arrived moments later and
+    // was thrown away.
+    // Two different films, so the judge has a real choice: two drafts of one
+    // genre differ by set dressing and the judge ends up picking on prose.
+    const [filmA, filmB] = registersFor(hash);
+    const [a, b] = await Promise.allSettled([
+      writersRoomAgent.run({ curriculum: working, draft: 'A', register: filmA }, emit),
+      writersRoomAgent.run({ curriculum: working, draft: 'B', register: filmB }, emit),
     ]);
-    const verdict = await draftJudgeAgent.run({ a, b }, emit);
-    const winner = verdict.winner === 'A' ? a : b;
+
+    const survived = [a, b].filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    if (survived.length === 0) {
+      const why = [a, b]
+        .map((r) => (r.status === 'rejected' ? String(r.reason).slice(0, 80) : ''))
+        .filter(Boolean)
+        .join('; ');
+      throw new Error(`both drafts failed: ${why}`);
+    }
+
+    let winner = survived[0]!;
+    if (survived.length === 1) {
+      emit(
+        event(
+          draftJudgeAgent.name,
+          'fallback',
+          `Only one draft survived, so there is nothing to judge: keeping "${winner.title}".`,
+        ),
+      );
+    } else {
+      const verdict = await draftJudgeAgent.run({ a: survived[0]!, b: survived[1]! }, emit);
+      winner = verdict.winner === 'A' ? survived[0]! : survived[1]!;
+    }
+
     await writeCache('outline', hash, winner);
     return winner;
   });
 
   // ---- 3. acts in parallel -------------------------------------------------
   const conceptById = new Map(working.concepts.map((c) => [c.id, c]));
-  const plannedActs = outline.acts
-    .filter((act) => conceptById.has(act.conceptId))
-    .slice(0, MAX_ACTS);
+  let plannedActs = outline.acts.filter((act) => conceptById.has(act.conceptId)).slice(0, MAX_ACTS);
 
   if (plannedActs.length === 0) {
     emit(event(VALIDATOR, 'rejected', 'The outline has no act pointing at a real concept.'));
@@ -224,7 +253,40 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
         return cached;
       }
     }
-    return Promise.all(plannedActs.map((act) => writeAct(act)));
+    // Same reasoning as the drafts: one act lost to an overloaded model should
+    // cost that act, not the world. `plannedActs` is narrowed to match, so the
+    // repair pass below still lines up act-for-act.
+    const written = await Promise.allSettled(plannedActs.map((act) => writeAct(act)));
+    const specs: ActSpec[] = [];
+    const surviving: OutlineAct[] = [];
+    written.forEach((result, i) => {
+      const plan = plannedActs[i]!;
+      if (result.status === 'fulfilled') {
+        specs.push(result.value);
+        surviving.push(plan);
+      } else {
+        emit(
+          event(
+            actWriterAgent.name,
+            'rejected',
+            `Act ${plan.id} was lost: ${brief(result.reason)}`,
+          ),
+        );
+      }
+    });
+
+    if (specs.length === 0) throw new Error('no act survived writing');
+    if (specs.length < plannedActs.length) {
+      emit(
+        event(
+          ORCHESTRATOR,
+          'fallback',
+          `${specs.length} of ${plannedActs.length} acts survived. Shipping a shorter world rather than none.`,
+        ),
+      );
+    }
+    plannedActs = surviving;
+    return specs;
   });
 
   // ---- 4. validate → one repair → validate --------------------------------

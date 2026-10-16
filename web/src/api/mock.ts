@@ -74,7 +74,14 @@ export const mockApi: ApiClient = {
   },
 
   getWorld(id) {
-    return delay(worldById(id));
+    // Mock mode has two prepared worlds and no pipeline. Saying so is the whole
+    // difference between "it ignored my chapter" and "generation is switched off".
+    const world = worldById(id);
+    return delay({
+      ...world,
+      substituted:
+        'Demo mode: this is a prepared world, matched to your chapter. Run with VITE_API=live to build one from it.',
+    });
   },
 
   async getScene(_worldId, sceneId) {

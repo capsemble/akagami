@@ -96,7 +96,11 @@ export function startDesign(chapter: ExtractedChapter, fresh = false): string {
         ) as GameScript;
         const scenes = mapScenes(script);
         job.scenes = scenes;
-        job.world = { ...toWorld(script, scenes), id };
+        job.world = {
+          ...toWorld(script, scenes),
+          id,
+          substituted: `The design models could not be reached (${reason.slice(0, 90)}), so this is the prepared world, not yours.`,
+        };
         job.usedFallback = true;
       } catch (inner) {
         job.error = inner instanceof Error ? inner.message : String(inner);
