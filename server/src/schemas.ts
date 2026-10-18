@@ -180,15 +180,34 @@ const MECHANIC_SCHEMA: Schema = {
     },
     aiSystem: {
       type: Type.OBJECT,
+      description:
+        "A retrieval act played over the chapter itself: the chapter is the library the Oracle's satchel is filled from.",
       properties: {
-        ragAct: {
+        ragAct: { type: Type.STRING, enum: ['chunking', 'topk', 'grounding'] },
+        question: {
           type: Type.STRING,
-          enum: ['chunking', 'embeddings', 'topk', 'grounding', 'injection'],
+          description:
+            'A question the chapter answers in one passage (for grounding: plus a part it never answers).',
         },
-        question: str,
-        goldFact: { type: Type.STRING, description: 'The fact a correct answer must contain.' },
+        goldFact: {
+          type: Type.STRING,
+          description: 'The fact a correct answer must contain, in words.',
+        },
+        goldQuote: {
+          type: Type.STRING,
+          description: 'The passage that answers it, copied VERBATIM from the chapter.',
+        },
+        keyFacts: {
+          ...strList,
+          description:
+            '2 to 4 short phrases (1-4 words each) copied from goldQuote that any correct answer must contain word for word. For chunking, pick phrases more than 40 words apart in the passage.',
+        },
+        silentOn: {
+          type: Type.STRING,
+          description: 'Grounding only: the part of the question the chapter does not answer.',
+        },
       },
-      required: ['ragAct', 'question', 'goldFact'],
+      required: ['ragAct', 'question', 'goldFact', 'goldQuote', 'keyFacts'],
     },
     sequence: {
       type: Type.OBJECT,

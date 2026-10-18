@@ -36,6 +36,12 @@ const STAGES: readonly StageDef[] = [
     agents: ['Act writer', 'Mechanic agent', 'Mapper'],
   },
   { id: 'rules', label: 'Checking every rule', agents: ['Validator'] },
+  // Only worlds with sequence or evidence acts cite the notes; a formula world
+  // shows this as skipped, which is the truth.
+  { id: 'grounding', label: 'Checking claims against your notes', agents: ['Evidence judge'] },
+  // Only runs when a draft failed a check: Gemini gets the simulator, the
+  // validator and the notes as tools and fixes its own level.
+  { id: 'playtest', label: 'Play-testing its own levels', agents: ['Play-tester'] },
   { id: 'art', label: 'Painting the cast', agents: ['Art director'] },
 ];
 

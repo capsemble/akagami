@@ -14,6 +14,7 @@ import type {
   SimSpec,
 } from '@chapter-quest/shared';
 import { startingOrder } from '@chapter-quest/shared';
+import { RAG_START } from './corpus.js';
 
 export interface NamedValue {
   name: string;
@@ -47,7 +48,14 @@ export interface WireMechanic {
     documents: { id: string; title: string; excerpt: string; shows: string }[];
     links: { claim: string; document: string; why: string }[];
   };
-  aiSystem?: { ragAct: RagAct; question: string; goldFact: string };
+  aiSystem?: {
+    ragAct: RagAct;
+    question: string;
+    goldFact: string;
+    goldQuote?: string;
+    keyFacts?: string[];
+    silentOn?: string;
+  };
   qualitative?: { mustShow: string[]; misconceptions: string[] };
 }
 
@@ -121,11 +129,21 @@ export function toMechanic(wire: WireMechanic, seed = ''): Mechanic {
   if (wire.type === 'ai-system') {
     if (!wire.aiSystem)
       throw new Error('mechanic.type is "ai-system" but the aiSystem branch is missing');
+    // A generated retrieval act is always played over the chapter it came
+    // from, starting broken in the way its lesson is about. The model names
+    // neither: the corpus and the start are the harness's, never the model's.
+    const { ragAct, question, goldFact, goldQuote, keyFacts, silentOn } = wire.aiSystem;
+    const lesson =
+      ragAct === 'chunking' || ragAct === 'topk' || ragAct === 'grounding' ? ragAct : null;
     return {
       type: 'ai-system',
-      ragAct: wire.aiSystem.ragAct,
-      question: wire.aiSystem.question,
-      goldFact: wire.aiSystem.goldFact,
+      ragAct,
+      question,
+      goldFact,
+      ...(lesson ? { corpus: 'chapter' as const, start: RAG_START[lesson] } : {}),
+      ...(goldQuote ? { goldQuote } : {}),
+      ...(keyFacts?.length ? { keyFacts } : {}),
+      ...(silentOn?.trim() ? { silentOn } : {}),
     };
   }
   if (!wire.qualitative)
@@ -135,4 +153,63 @@ export function toMechanic(wire: WireMechanic, seed = ''): Mechanic {
 
 export function toActSpec(wire: WireAct): ActSpec {
   return { ...wire, mechanic: toMechanic(wire.mechanic, wire.id) };
+}
+
+/**
+ * ActSpec → the wire shape the model writes. The inverse of `toActSpec`, so a
+ * drafted act can be handed back to the model to revise in its own format.
+ * What the harness adds after the model — a sequence's computed start, a
+ * grounding record — is left out: the model never writes those.
+ */
+export function toWireAct(spec: ActSpec): WireAct {
+  const m = spec.mechanic;
+  let mechanic: WireMechanic;
+  if (m.type === 'formula') {
+    mechanic = {
+      type: 'formula',
+      formula: {
+        spec: {
+          constants: Object.entries(m.spec.constants).map(([name, value]) => ({ name, value })),
+          state: Object.entries(m.spec.state).map(([name, expr]) => ({ name, expr })),
+          step: Object.entries(m.spec.step).map(([name, expr]) => ({ name, expr })),
+          outputs: Object.entries(m.spec.outputs).map(([name, expr]) => ({ name, expr })),
+          win: m.spec.win,
+          dt: m.spec.dt,
+          maxTime: m.spec.maxTime,
+          ...(m.spec.until ? { until: m.spec.until } : {}),
+        },
+        params: m.params,
+      },
+    };
+  } else if (m.type === 'sequence') {
+    mechanic = {
+      type: 'sequence',
+      sequence: { prompt: m.prompt, items: m.items, rules: m.rules, solution: m.solution },
+    };
+  } else if (m.type === 'evidence') {
+    mechanic = {
+      type: 'evidence',
+      evidence: {
+        prompt: m.prompt,
+        claims: m.claims,
+        documents: m.evidence,
+        links: m.links.map((l) => ({ claim: l.claim, document: l.evidence, why: l.why })),
+      },
+    };
+  } else if (m.type === 'ai-system') {
+    mechanic = {
+      type: 'ai-system',
+      aiSystem: {
+        ragAct: m.ragAct,
+        question: m.question,
+        goldFact: m.goldFact,
+        ...(m.goldQuote ? { goldQuote: m.goldQuote } : {}),
+        ...(m.keyFacts ? { keyFacts: m.keyFacts } : {}),
+        ...(m.silentOn ? { silentOn: m.silentOn } : {}),
+      },
+    };
+  } else {
+    mechanic = { type: 'qualitative', qualitative: m.rubric };
+  }
+  return { ...spec, mechanic };
 }

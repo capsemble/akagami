@@ -44,11 +44,15 @@ export function routeConcepts(curriculum: Curriculum): Routing {
       continue;
     }
     if (concept.kind === 'ai-system') {
+      // About retrieval: played over the chapter itself, as its own library.
+      if (aboutRetrieval(concept)) {
+        playable.push(concept);
+        continue;
+      }
       unsupported.push({
         concept,
-        reason: aboutRetrieval(concept)
-          ? 'a retrieval act needs a corpus built from this chapter, and the runtime only has the canned Oracle table'
-          : 'classified as an AI-system behaviour but it is not about retrieval, so the RAG panel would teach the wrong thing',
+        reason:
+          'classified as an AI-system behaviour but it is not about retrieval, so the RAG panel would teach the wrong thing',
       });
       continue;
     }

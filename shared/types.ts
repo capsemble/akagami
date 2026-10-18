@@ -603,7 +603,22 @@ export type Mechanic =
        * it falls back to. Absent means a corpus built from the chapter, which
        * does not exist yet, so such an act cannot be finished.
        */
-      corpus?: 'fixture' | 'oracle';
+      corpus?: 'fixture' | 'oracle' | 'chapter';
+      /**
+       * For a `chapter` corpus — the uploaded chapter is the library. The
+       * passage that answers the question, verbatim, and the short phrases
+       * from it any correct answer must contain.
+       */
+      goldQuote?: string;
+      keyFacts?: string[];
+      /** A grounding act's question asks this too, and the chapter never says. */
+      silentOn?: string;
+      /**
+       * The act run on the real pipeline at build time: the starting satchel
+       * lost, and `fix` won. Absent means it was never verified, and an act
+       * on the chapter corpus is not shipped without it.
+       */
+      verified?: { startLost: boolean; fix?: RagParams; checkedAt: string };
       /**
        * The satchel the act opens with: the broken setting its lesson is
        * about. It is checked to lose, so the act cannot be won by asking

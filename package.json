@@ -30,7 +30,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "deploy": "bash scripts/deploy.sh",
-    "audit": "npm -w @chapter-quest/server run audit"
+    "audit": "npm -w @chapter-quest/server run audit",
+    "eval": "npm -w @chapter-quest/server run eval --"
   },
   "devDependencies": {
     "@eslint/js": "^9.12.0",

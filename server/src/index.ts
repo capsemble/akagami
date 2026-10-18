@@ -12,8 +12,8 @@ import { artFile } from './pipeline/art.js';
 import { extractFromString } from './extract.js';
 import { getJob, startDesign, watch } from './jobs.js';
 import { adapt, adaptContext, readAdaptRequest } from './adapt.js';
-import { runRag } from './rag.js';
-import { listBuilt, loadBuilt } from './library.js';
+import { chapterCorpus, runRag } from './rag.js';
+import { listBuilt, loadBuilt, sourceOf } from './library.js';
 import { askGuide, guideContext, readGuideRequest } from './guide.js';
 
 const app = express();
@@ -275,6 +275,32 @@ app.post('/api/rag/run', async (req: Request, res: Response) => {
         }).catch(() => null)
       : null;
   const mechanic = context?.act.mechanic;
+  // Played over the chapter the world was built from. There is no canned
+  // table for a chapter nobody has seen, so a failure here is reported, not
+  // papered over.
+  if (mechanic?.type === 'ai-system' && mechanic.corpus === 'chapter') {
+    try {
+      const text = await sourceOf(String(body.worldId));
+      if (!text)
+        return fail(
+          res,
+          new Error('the chapter this world was built from is not on this server'),
+          404,
+        );
+      res.json(
+        await runRag(
+          mechanic.question,
+          params,
+          mechanic.ragAct,
+          undefined,
+          chapterCorpus(text, mechanic),
+        ),
+      );
+    } catch (err) {
+      fail(res, err);
+    }
+    return;
+  }
   if (mechanic?.type === 'ai-system' && mechanic.corpus === 'oracle') {
     try {
       res.json(await runRag(mechanic.question, params, mechanic.ragAct));

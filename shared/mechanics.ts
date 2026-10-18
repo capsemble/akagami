@@ -155,6 +155,20 @@ export function completionOf(act: { mechanic?: Mechanic; stage?: ActStage }): Co
     }
 
     case 'ai-system':
+      if (mechanic.corpus === 'chapter') {
+        // Played over the uploaded chapter: shipped only once a live run has
+        // shown the broken start losing and a fix winning.
+        return mechanic.verified?.startLost && mechanic.verified.fix
+          ? {
+              ok: true,
+              how: 'live retrieval over the chapter itself; start verified to lose, a fix verified to win',
+            }
+          : {
+              ok: false,
+              unsupported: false,
+              reason: 'a retrieval act over the chapter has not been verified on the live pipeline',
+            };
+      }
       return mechanic.corpus === 'oracle'
         ? {
             ok: true,
@@ -166,7 +180,7 @@ export function completionOf(act: { mechanic?: Mechanic; stage?: ActStage }): Co
               ok: false,
               unsupported: true,
               reason:
-                'retrieval acts run only against the canned Oracle table; no corpus is built from the chapter, so the answers would belong to a different story',
+                'this retrieval act has no corpus to run over, so its answers would belong to a different story',
             };
 
     case 'qualitative':

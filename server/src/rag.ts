@@ -29,54 +29,23 @@ import { cacheDir } from './cache.js';
 import { MODELS, embed, generateJson } from './gemini.js';
 import { mocksDir } from './paths.js';
 import { RAG_ANSWER_SCHEMA, RAG_JUDGE_SCHEMA, RAG_RERANK_SCHEMA } from './schemas.js';
+import {
+  RAG_FIXES,
+  RAG_START,
+  SILENCE,
+  carriesWholeFact,
+  chapterCorpus,
+  chunkScrolls,
+  parseLibrary,
+} from './corpus.js';
+import type { Chunk, Corpus, Fact, Scroll } from './corpus.js';
 
-export interface Scroll {
-  id: string;
-  title: string;
-  text: string;
-}
-
-export interface Chunk {
-  id: string;
-  scroll: string;
-  text: string;
-}
+export { chunkScrolls, paragraphsOf, parseLibrary } from './corpus.js';
+export { chapterCorpus };
+export type { Chunk, Corpus, Scroll } from './corpus.js';
 
 /** The scroll whose entry is the answer. Its text is the judge's ground truth. */
 export const GOLD_SCROLL = 's12';
-
-export function parseLibrary(markdown: string): Scroll[] {
-  const scrolls: Scroll[] = [];
-  for (const block of markdown.split(/^## /m).slice(1)) {
-    const [heading = '', ...body] = block.split('\n');
-    const match = /^(\S+)\s+—\s+(.*)$/.exec(heading.trim());
-    if (!match) continue;
-    scrolls.push({
-      id: match[1]!,
-      title: match[2]!,
-      text: body.join(' ').replace(/\s+/g, ' ').trim(),
-    });
-  }
-  return scrolls;
-}
-
-/** Fixed-size word windows within each scroll; a chunk never spans two. */
-export function chunkScrolls(scrolls: Scroll[], size: number, overlap: number): Chunk[] {
-  const step = Math.max(1, size - overlap);
-  const chunks: Chunk[] = [];
-  for (const scroll of scrolls) {
-    const words = scroll.text.split(' ');
-    for (let start = 0, n = 1; start < words.length; start += step, n++) {
-      chunks.push({
-        id: `${scroll.id}#${n}`,
-        scroll: scroll.id,
-        text: words.slice(start, start + size).join(' '),
-      });
-      if (start + size >= words.length) break;
-    }
-  }
-  return chunks;
-}
 
 export function cosine(a: number[], b: number[]): number {
   let dot = 0;
@@ -90,26 +59,22 @@ export function cosine(a: number[], b: number[]): number {
   return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
-export const isGold = (chunk: Chunk): boolean =>
+const isOracleGold = (chunk: Chunk): boolean =>
   chunk.scroll === GOLD_SCROLL && /forty|milligrams|taken at dusk/i.test(chunk.text);
 
 /**
  * The facts a correct answer must contain, checked by pattern, not by a model.
  * Asking who approved it adds one: the honest answer is that no scroll says.
  */
-export function keyFacts(question: string): { name: string; pattern: RegExp }[] {
-  const facts = [
+export function keyFacts(question: string): Fact[] {
+  const facts: Fact[] = [
     { name: 'forty', pattern: /\bforty\b|\b40\b/i },
     { name: 'milligrams', pattern: /milligram|\bmg\b/i },
   ];
   // Only a question that asks when needs the hour in its answer.
   if (/\bwhen\b/i.test(question)) facts.push({ name: 'at dusk', pattern: /\bdusk\b/i });
   if (/approv/i.test(question)) {
-    facts.push({
-      name: 'that no scroll records who approved it',
-      pattern:
-        /\b(no|not|never|nothing|none|unrecorded|doesn't|does not|don't)\b[^.]{0,80}\b(record|scroll|say|state|mention|approv|written|note)/i,
-    });
+    facts.push({ name: 'that no scroll records who approved it', pattern: SILENCE, silence: true });
   }
   return facts;
 }
@@ -167,11 +132,23 @@ export async function loadLibrary(): Promise<Scroll[]> {
   return parseLibrary(await readFile(join(mocksDir, 'oracle-library.md'), 'utf8'));
 }
 
-function indexFor(scrolls: Scroll[], size: number, overlap: number, deps: RagDeps) {
-  const key = `${deps.models.embed}|${size}|${overlap}`;
+/** The prepared world's library. Its record is the ledger entry; its facts follow the question. */
+export async function oracleCorpus(question: string): Promise<Corpus> {
+  const scrolls = await loadLibrary();
+  return {
+    id: 'oracle',
+    scrolls,
+    record: scrolls.find((s) => s.id === GOLD_SCROLL)?.text ?? '',
+    facts: keyFacts(question),
+    isGold: isOracleGold,
+  };
+}
+
+function indexFor(corpus: Corpus, size: number, overlap: number, deps: RagDeps) {
+  const key = `${deps.models.embed}|${corpus.id}|${size}|${overlap}`;
   let index = indexes.get(key);
   if (!index) {
-    const chunks = chunkScrolls(scrolls, size, overlap);
+    const chunks = chunkScrolls(corpus.scrolls, size, overlap);
     index = deps
       .embed(chunks.map((c) => c.text))
       .then((vectors) => chunks.map((chunk, i) => ({ chunk, vector: vectors[i]! })));
@@ -238,6 +215,7 @@ export function lessonOf(
   ragAct: RagAct | undefined,
   run: Pick<RagRunResponse, 'retrieved' | 'judge'>,
   params: RagParams,
+  facts: Fact[] = keyFacts('when'),
 ): NonNullable<RagRunResponse['lesson']> {
   const correct = {
     label: 'The Oracle’s answer is right and fully supported',
@@ -246,13 +224,17 @@ export function lessonOf(
   const gold = run.retrieved.filter((r) => r.gold).length;
   const checks = [correct];
   if (ragAct === 'chunking') {
+    const whole = facts
+      .filter((f) => !f.silence)
+      .map((f) => `"${f.name}"`)
+      .join(' + ');
     checks.push({
-      label: 'One chunk carries the whole fact — "forty milligrams, taken at dusk"',
-      ok: run.retrieved.some((r) => /forty milligrams/i.test(r.text) && /dusk/i.test(r.text)),
+      label: `One chunk carries the whole fact — ${whole}`,
+      ok: run.retrieved.some((r) => carriesWholeFact(r.text, facts)),
     });
   } else if (ragAct === 'topk') {
     checks.push(
-      { label: 'The ledger entry is in the satchel', ok: gold > 0 },
+      { label: 'The passage with the answer is in the satchel', ok: gold > 0 },
       {
         label: `A lean satchel: at least 1 scroll in 3 is the right one (${gold} of ${params.k})`,
         ok: gold > 0 && gold / params.k >= 1 / 3,
@@ -260,7 +242,7 @@ export function lessonOf(
     );
   } else if (ragAct === 'grounding') {
     checks.push({
-      label: 'Not one claim the scrolls do not make',
+      label: 'Not one claim the source does not make',
       ok: run.judge.unsupportedClaims.length === 0,
     });
   }
@@ -272,17 +254,18 @@ export async function runRag(
   params: RagParams,
   ragAct?: RagAct,
   deps: RagDeps = defaultDeps,
-  library?: Scroll[],
+  given?: Corpus,
 ): Promise<RagRunResponse> {
+  const corpus = given ?? (await oracleCorpus(question));
   const grounded = params.rule === 'grounded';
-  const key = `${deps.models.embed}|${deps.models.answer}|${question}|${params.chunkSize}-${params.overlap}-${params.k}-${params.rerank}-${grounded ? 'g' : 'n'}`;
+  const key = `${corpus.id}|${deps.models.embed}|${deps.models.answer}|${question}|${params.chunkSize}-${params.overlap}-${params.k}-${params.rerank}-${grounded ? 'g' : 'n'}`;
   if (deps === defaultDeps) {
     const hit = (await loadRuns())[key];
     if (hit) {
       // Everything deterministic is recomputed from the cached answer — the
       // facts it must contain, and the lesson, which depends on the act. Only
       // the model's reading of unsupported claims is reused.
-      const missingFacts = keyFacts(question)
+      const missingFacts = corpus.facts
         .filter((f) => !f.pattern.test(hit.answer))
         .map((f) => f.name);
       const judge = {
@@ -291,14 +274,13 @@ export async function runRag(
         correct: missingFacts.length === 0 && hit.judge.unsupportedClaims.length === 0,
       };
       const fresh = { ...hit, judge };
-      return { ...fresh, cached: true, lesson: lessonOf(ragAct, fresh, params) };
+      return { ...fresh, cached: true, lesson: lessonOf(ragAct, fresh, params, corpus.facts) };
     }
   }
 
   const started = Date.now();
-  const scrolls = library ?? (await loadLibrary());
   const [index, query] = await Promise.all([
-    indexFor(scrolls, params.chunkSize, params.overlap, deps),
+    indexFor(corpus, params.chunkSize, params.overlap, deps),
     queryFor(question, deps),
   ]);
   const ranked = index
@@ -327,9 +309,8 @@ export async function runRag(
     grounded ? `${ORACLE}\n\n${GROUNDED}` : ORACLE,
   );
 
-  const facts = keyFacts(question);
-  const missingFacts = facts.filter((f) => !f.pattern.test(answer)).map((f) => f.name);
-  const record = scrolls.find((s) => s.id === GOLD_SCROLL)?.text ?? '';
+  const missingFacts = corpus.facts.filter((f) => !f.pattern.test(answer)).map((f) => f.name);
+  const record = corpus.record;
   const { unsupported } = await deps.ask<{ unsupported: string[] }>(
     `QUESTION: ${question}\n\nRECORD:\n${record}\n\nANSWER:\n${answer}`,
     RAG_JUDGE_SCHEMA,
@@ -344,7 +325,7 @@ export async function runRag(
       id: chunk.id,
       text: chunk.text,
       score: Math.round(score * 100) / 100,
-      gold: isGold(chunk),
+      gold: corpus.isGold(chunk),
     })),
     answer: answer.trim(),
     judge: {
@@ -358,6 +339,63 @@ export async function runRag(
     models: deps.models,
   };
   if (deps === defaultDeps) await saveRun(key, run);
-  run.lesson = lessonOf(ragAct, run, params);
+  run.lesson = lessonOf(ragAct, run, params, corpus.facts);
   return run;
+}
+
+/**
+ * Play a chapter-corpus act on the real pipeline before anyone else can: its
+ * starting satchel has to lose, and one of the fixes a player would reach for
+ * has to win. Runs are cached like any other, so a rebuild costs nothing.
+ * A model's answer is part of every run, so this is a measurement, recorded
+ * with the act — not a proof.
+ */
+export async function verifyChapterAct(
+  mechanic: { ragAct: RagAct; question: string; keyFacts?: string[]; silentOn?: string },
+  chapterText: string,
+  deps: RagDeps = defaultDeps,
+): Promise<{
+  verified: { startLost: boolean; fix?: RagParams; checkedAt: string };
+  problems: { code: string; message: string }[];
+}> {
+  const lesson = mechanic.ragAct as keyof typeof RAG_START;
+  const corpus = chapterCorpus(chapterText, mechanic);
+  const start = await runRag(mechanic.question, RAG_START[lesson], mechanic.ragAct, deps, corpus);
+  const startLost = !start.lesson?.passed;
+  let fix: RagParams | undefined;
+  let last: RagRunResponse | undefined;
+  for (const params of RAG_FIXES[lesson]) {
+    last = await runRag(mechanic.question, params, mechanic.ragAct, deps, corpus);
+    if (last.lesson?.passed) {
+      fix = params;
+      break;
+    }
+  }
+  const failing = (run?: RagRunResponse) =>
+    run?.lesson?.checks
+      .filter((c) => !c.ok)
+      .map((c) => c.label)
+      .join('; ') ?? 'no run';
+  const problems = [
+    ...(startLost
+      ? []
+      : [
+          {
+            code: 'rag-start-wins',
+            message: `the broken starting satchel already wins when run live, so the act is free`,
+          },
+        ]),
+    ...(fix
+      ? []
+      : [
+          {
+            code: 'rag-unwinnable',
+            message: `no fix won when run live (${failing(last)}); the answer was: "${(last?.answer ?? '').slice(0, 120)}"`,
+          },
+        ]),
+  ];
+  return {
+    verified: { startLost, ...(fix ? { fix } : {}), checkedAt: new Date().toISOString() },
+    problems,
+  };
 }

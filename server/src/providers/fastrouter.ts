@@ -16,7 +16,7 @@
  * The key is read from the environment on the server and never leaves it.
  */
 import type { Schema } from '@google/genai';
-import { responseFormat } from './jsonschema.js';
+import { responseFormat, toJsonSchema } from './jsonschema.js';
 
 const BASE = process.env.FASTROUTER_BASE_URL ?? 'https://go.fastrouter.ai/api/v1';
 
@@ -202,4 +202,49 @@ export async function embed(
   if (res.error?.message) throw new Error(`fastrouter: ${res.error.message}`);
   const vectors = (res.data ?? []).map((d) => d.embedding ?? []);
   return { vectors, tokens: res.usage?.total_tokens ?? 0 };
+}
+
+/** One message of an OpenAI-style conversation, passed back exactly as received. */
+export type ChatMessage = Record<string, unknown>;
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  parameters: Schema;
+}
+
+interface ToolChatResponse {
+  choices?: { message?: ChatMessage; finish_reason?: string }[];
+  usage?: { total_tokens?: number };
+  error?: { message?: string };
+}
+
+/**
+ * One turn of a tool-using conversation. The assistant message comes back
+ * whole — Gemini's reasoning details ride inside it and have to be sent back
+ * unchanged on the next turn, or the follow-up is refused.
+ */
+export async function chatWithTools(call: {
+  model: string;
+  messages: ChatMessage[];
+  tools: ToolDef[];
+  temperature?: number;
+}): Promise<{ message: ChatMessage; tokens: number }> {
+  const res = await post<ToolChatResponse>('/chat/completions', {
+    model: call.model,
+    messages: call.messages,
+    temperature: call.temperature ?? 0.4,
+    tools: call.tools.map((t) => ({
+      type: 'function',
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: toJsonSchema(t.parameters),
+      },
+    })),
+  });
+  if (res.error?.message) throw new Error(`fastrouter: ${res.error.message}`);
+  const message = res.choices?.[0]?.message;
+  if (!message) throw new Error('fastrouter: empty tool turn');
+  return { message, tokens: res.usage?.total_tokens ?? 0 };
 }

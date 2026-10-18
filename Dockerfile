@@ -26,6 +26,13 @@ COPY --from=build /app/shared/dist shared/dist
 COPY --from=build /app/server/dist server/dist
 COPY --from=build /app/web/dist web/dist
 COPY mocks mocks
+# The prepared world the pipeline falls back to; without it a failed build
+# had nothing to stand in.
+COPY server/fixtures server/fixtures
+# Worlds built before deploying — scripts, painted art, cached Oracle runs —
+# so the deployed app opens on the curated demo worlds rather than an empty
+# library. Anything built on Cloud Run lands beside them, until the next deploy.
+COPY server/.cache server/.cache
 
 # Cloud Run sets PORT; the server reads it.
 ENV PORT=8080

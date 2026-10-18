@@ -262,14 +262,26 @@ test('the starting order is computed, deterministic, and always starts unsolved'
   assert.equal(judgeSequence(mechanic, mechanic.initial).won, false);
 });
 
-test('a model cannot mark its own retrieval act as fixture-backed', () => {
+test('a model cannot choose its corpus: a generated retrieval act is always played over its own chapter', () => {
   const mechanic = toMechanic({
     type: 'ai-system',
     aiSystem: { ragAct: 'chunking', question: 'q', goldFact: 'g' },
     // Whatever arrives on the wire, the branch reads only its own fields.
     ...({ corpus: 'fixture' } as object),
   });
-  assert.equal('corpus' in mechanic, false);
+  assert.equal(mechanic.type === 'ai-system' && mechanic.corpus, 'chapter');
+  assert.deepEqual(mechanic.type === 'ai-system' && mechanic.start, {
+    chunkSize: 40,
+    overlap: 0,
+    k: 3,
+    rerank: false,
+  });
+  // A lesson with nothing to measure gets no corpus at all, and stays unplayable.
+  const injection = toMechanic({
+    type: 'ai-system',
+    aiSystem: { ragAct: 'injection', question: 'q', goldFact: 'g' },
+  });
+  assert.equal('corpus' in injection, false);
 });
 
 // --- completion for every mechanic kind ---------------------------------------------
@@ -324,15 +336,19 @@ test('routing keeps playable concepts and names why the rest are not built', () 
   assert.match(why.get('image-as-numbers')!, /no mechanic can judge it/);
 });
 
-test('a genuinely retrieval concept is still unsupported, for the honest reason', () => {
+test('a genuine retrieval concept is played over its own chapter; a mislabelled one is still refused', () => {
   const routing = routeConcepts({
     ...vision,
     concepts: [
       concept('top-k', 'ai-system', 'Top-k retrieval', 'More retrieved chunks is not better.'),
+      concept('convolution', 'ai-system', 'Convolution', 'A kernel slides over the image.'),
     ],
   });
-  assert.equal(routing.playable.length, 0);
-  assert.match(routing.unsupported[0]!.reason, /corpus built from this chapter/);
+  assert.deepEqual(
+    routing.playable.map((c) => c.id),
+    ['top-k'],
+  );
+  assert.match(routing.unsupported[0]!.reason, /not about retrieval/);
   assert.throws(() => {
     throw new UnsupportedChapterError(routing.unsupported);
   }, /None of the 1 concept/);

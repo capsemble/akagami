@@ -396,6 +396,148 @@ export async function generateJson<T>(
   return parseJson<T>(res.text);
 }
 
+/** A function the model may call, and what running it does. */
+export interface Tool {
+  name: string;
+  description: string;
+  /** Arguments, as a Gemini schema (converted for OpenAI-style endpoints). */
+  parameters: Schema;
+  run(args: Record<string, unknown>): unknown;
+}
+
+export interface ToolLoopOptions {
+  role?: ModelRole;
+  systemInstruction: string;
+  /** Model turns before giving up. Each turn may make several calls. */
+  maxTurns: number;
+  temperature?: number;
+  /** Checked after every tool call: true ends the loop early, e.g. the act passed. */
+  done?: () => boolean;
+}
+
+export interface ToolLoopResult {
+  turns: number;
+  calls: number;
+  /** Whatever the model said when it stopped calling tools, if it did. */
+  text: string;
+}
+
+const TOOL_TURN_TIMEOUT_MS = 60_000;
+
+const runTool = async (tools: Tool[], name: string, args: Record<string, unknown>) => {
+  const tool = tools.find((t) => t.name === name);
+  if (!tool) return { error: `no tool called ${name}` };
+  try {
+    return await tool.run(args);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+/**
+ * Function calling, on either provider: the model calls tools, the results go
+ * back, until it stops calling them, `done()` says the job is finished, or the
+ * turns run out. Tool results are whatever the tool returned; a tool that
+ * throws reports the error to the model rather than ending the loop.
+ */
+export async function runTools(
+  prompt: string,
+  tools: Tool[],
+  opts: ToolLoopOptions,
+): Promise<ToolLoopResult> {
+  const model = ROLE_MODEL[opts.role ?? 'text']();
+  let calls = 0;
+
+  if (PROVIDER === 'fastrouter') {
+    const messages: fastrouter.ChatMessage[] = [
+      { role: 'system', content: opts.systemInstruction },
+      { role: 'user', content: prompt },
+    ];
+    for (let turn = 1; turn <= opts.maxTurns; turn++) {
+      const { message, tokens } = await withRetry('tools', model, () =>
+        withTimeout(
+          TOOL_TURN_TIMEOUT_MS,
+          `tool turn on ${model}`,
+          fastrouter.chatWithTools({
+            model,
+            messages,
+            tools,
+            temperature: opts.temperature ?? 0.4,
+          }),
+        ),
+      );
+      spendTokens(model, tokens);
+      messages.push(message);
+      const toolCalls = (message.tool_calls ?? []) as {
+        id: string;
+        function: { name: string; arguments: string };
+      }[];
+      if (toolCalls.length === 0)
+        return { turns: turn, calls, text: String(message.content ?? '') };
+      for (const call of toolCalls) {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
+        } catch {
+          args = {};
+        }
+        const result = await runTool(tools, call.function.name, args);
+        calls++;
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+      }
+      if (opts.done?.()) return { turns: turn, calls, text: '' };
+    }
+    return { turns: opts.maxTurns, calls, text: '' };
+  }
+
+  const contents: { role: string; parts: Part[] }[] = [{ role: 'user', parts: [{ text: prompt }] }];
+  for (let turn = 1; turn <= opts.maxTurns; turn++) {
+    const res = await withRetry('tools', model, () =>
+      withTimeout(
+        TOOL_TURN_TIMEOUT_MS,
+        `tool turn on ${model}`,
+        gemini().models.generateContent({
+          model,
+          contents,
+          config: {
+            temperature: opts.temperature ?? 0.4,
+            systemInstruction: opts.systemInstruction,
+            tools: [
+              {
+                functionDeclarations: tools.map((t) => ({
+                  name: t.name,
+                  description: t.description,
+                  parameters: t.parameters,
+                })),
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    spendTokens(model, res.usageMetadata?.totalTokenCount ?? 0);
+    // The model's turn goes back whole: it carries the thought signatures
+    // a follow-up needs.
+    const content = res.candidates?.[0]?.content;
+    if (content) contents.push({ role: 'model', parts: content.parts ?? [] });
+    const fnCalls = res.functionCalls ?? [];
+    if (fnCalls.length === 0) return { turns: turn, calls, text: res.text ?? '' };
+    const responses: Part[] = [];
+    for (const call of fnCalls) {
+      const result = await runTool(
+        tools,
+        call.name ?? '',
+        (call.args ?? {}) as Record<string, unknown>,
+      );
+      calls++;
+      responses.push({ functionResponse: { name: call.name ?? '', response: { result } } });
+    }
+    contents.push({ role: 'user', parts: responses });
+    if (opts.done?.()) return { turns: turn, calls, text: '' };
+  }
+  return { turns: opts.maxTurns, calls, text: '' };
+}
+
 export interface GeneratedImage {
   mimeType: string;
   /** base64, as returned by the API */

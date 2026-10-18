@@ -16,6 +16,8 @@ import type {
 } from '@chapter-quest/shared';
 import {
   GENERATED_MECHANICS,
+  MIN_QUOTE_WORDS,
+  quoteInSource,
   evidenceGroundingProblems,
   evidenceProblems,
   normaliseSource,
@@ -23,6 +25,7 @@ import {
   sequenceProblems,
 } from '@chapter-quest/shared';
 import type { Evaluator } from './evaluator.js';
+import { chapterRagProblems } from './corpus.js';
 import { aboutRetrieval } from './routing.js';
 
 export interface ValidationError {
@@ -417,7 +420,7 @@ export function validateFormulaMechanics(
 // ai-system mechanics
 // ---------------------------------------------------------------------------
 
-export function validateAiSystemMechanics(acts: ActSpec[]): ValidationResult {
+export function validateAiSystemMechanics(acts: ActSpec[], chapterText = ''): ValidationResult {
   const errors: ValidationError[] = [];
 
   for (const [i, act] of acts.entries()) {
@@ -431,9 +434,60 @@ export function validateAiSystemMechanics(acts: ActSpec[]): ValidationResult {
     if (!act.mechanic.question.trim()) {
       errors.push(err(`${at}.question`, 'empty', 'the act asks the Oracle nothing'));
     }
-    // TODO(16 Oct): verify goldFact actually appears in the RAG corpus for this
-    // world, once the corpus builder exists. Until then a plausible-looking
-    // gold fact can still point at nothing.
+    // An act played over the chapter itself: its answer has to be in the
+    // chapter, word for word, and the lesson has to be one the corpus can
+    // stage — torn chunks that really tear, a satchel that is really too full.
+    const m = act.mechanic;
+    if (m.corpus !== 'chapter') continue;
+    if (!['chunking', 'topk', 'grounding'].includes(m.ragAct)) {
+      errors.push(
+        err(
+          `${at}.ragAct`,
+          'unsupported-rag-act',
+          `"${m.ragAct}" has no lesson the game can measure`,
+        ),
+      );
+      continue;
+    }
+    const quote = m.goldQuote ?? '';
+    if (quote.split(/\s+/).filter(Boolean).length < MIN_QUOTE_WORDS) {
+      errors.push(
+        err(`${at}.goldQuote`, 'quote-too-short', 'the answering passage is missing or too short'),
+      );
+    } else if (!quoteInSource(quote, chapterText)) {
+      errors.push(
+        err(
+          `${at}.goldQuote`,
+          'evidence-not-in-source',
+          `not found in the notes: "${quote.slice(0, 90)}"`,
+        ),
+      );
+    }
+    const facts = m.keyFacts ?? [];
+    if (facts.length < 2 || facts.length > 4) {
+      errors.push(
+        err(`${at}.keyFacts`, 'key-fact-count', `${facts.length} key facts; 2 to 4 needed`),
+      );
+    }
+    facts.forEach((fact, j) => {
+      if (fact.split(/\s+/).length > 6) {
+        errors.push(
+          err(`${at}.keyFacts[${j}]`, 'key-fact-too-long', `"${fact}" is not a short phrase`),
+        );
+      } else if (!normaliseSource(quote).includes(normaliseSource(fact))) {
+        errors.push(
+          err(
+            `${at}.keyFacts[${j}]`,
+            'key-fact-not-in-quote',
+            `"${fact}" is not in the answering passage`,
+          ),
+        );
+      }
+    });
+    if (errors.some((e) => e.path.startsWith(at))) continue;
+    for (const problem of chapterRagProblems(chapterText, m)) {
+      errors.push(err(`${at}.keyFacts`, problem.code, problem.message));
+    }
   }
 
   return result(errors);
@@ -509,10 +563,16 @@ export function validateRuntimeSupport(curriculum: Curriculum, acts: ActSpec[]):
   for (const [i, act] of acts.entries()) {
     const type = act.mechanic.type;
     if (GENERATED_MECHANICS.includes(type)) continue;
-    // The prepared Oracle world, answered from the canned table. The wire
-    // schema has no `corpus`, so a model can never claim this for itself.
-    if (act.mechanic.type === 'ai-system' && act.mechanic.corpus) continue;
     const concept = conceptById.get(act.conceptId);
+    // A retrieval act on a real corpus: the prepared Oracle's, or the chapter
+    // itself — but only for a concept that is about retrieval.
+    if (
+      act.mechanic.type === 'ai-system' &&
+      act.mechanic.corpus &&
+      (!concept || aboutRetrieval(concept))
+    ) {
+      continue;
+    }
     if (type === 'ai-system' && concept && !aboutRetrieval(concept)) {
       errors.push(
         err(
@@ -634,7 +694,7 @@ export function validateScript({
     ...validateStructure(curriculum, outline, acts).errors,
     ...validateGrounding(curriculum, chapterText).errors,
     ...validateFormulaMechanics(acts, evaluator).errors,
-    ...validateAiSystemMechanics(acts).errors,
+    ...validateAiSystemMechanics(acts, chapterText).errors,
     ...validateSequenceMechanics(acts).errors,
     ...validateEvidenceMechanics(acts).errors,
     ...validateCitations(acts, chapterText).errors,

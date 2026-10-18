@@ -122,3 +122,10 @@ export async function loadBuilt(
   const scenes = mapScenes(script);
   return { world: toWorld(script, scenes), scenes };
 }
+
+/** The chapter a world was built from, as kept by the build — its retrieval acts' library. */
+export async function sourceOf(id: string): Promise<string | null> {
+  const hash = await hashOf(id);
+  if (!hash) return null;
+  return (await readCache<{ text: string }>('source', hash))?.text ?? null;
+}

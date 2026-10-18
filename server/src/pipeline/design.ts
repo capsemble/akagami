@@ -16,6 +16,7 @@ import type {
   GameScript,
   Outline,
   OutlineAct,
+  RagParams,
 } from '@chapter-quest/shared';
 import { readCache, writeCache } from '../cache.js';
 import { loadEvaluator } from '../evaluator.js';
@@ -25,6 +26,8 @@ import { repoRoot } from '../paths.js';
 import { registersFor } from '../registers.js';
 import { UnsupportedChapterError, routeConcepts } from '../routing.js';
 import { assess, isGrounded, judgeGrounding, pruneUnsupportedRules } from './judge.js';
+import { PLAY_TESTER, playtest } from './playtest.js';
+import { verifyChapterAct } from '../rag.js';
 import { validateScript } from '../validate.js';
 import type { ValidationError, ValidationResult } from '../validate.js';
 import { paintWorld } from './art.js';
@@ -352,6 +355,26 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
             if (!actErrors?.length) return act;
             const plan = plannedActs[i];
             if (!plan) return act;
+            // Problems the game's own checks can see go to the play-tester,
+            // which gets the simulator, the validator and the notes as tools.
+            // A judge's verdict is not one of them: those go straight to the
+            // one-shot repair, which the play-tester also falls back to.
+            if (actErrors.some((e) => !JUDGE_CODES.has(e.code))) {
+              const tested = await playtest(
+                {
+                  outline,
+                  curriculum: working,
+                  concept: conceptById.get(plan.conceptId)!,
+                  plan,
+                  draft: act,
+                  errors: actErrors,
+                  notes: chapter.text,
+                  evaluator,
+                },
+                emit,
+              );
+              if (tested.passed && tested.spec) return tested.spec;
+            }
             try {
               return await writeAct(plan, act, actErrors);
             } catch (cause) {
@@ -536,6 +559,18 @@ export async function designWorld(options: DesignOptions): Promise<DesignResult>
   return { script, events, timings, validation, usedFallback: false, cacheHits };
 }
 
+/** Verdicts only the evidence judge can give; the play-tester's validator cannot see them. */
+const JUDGE_CODES = new Set([
+  'rag-start-wins',
+  'rag-unwinnable',
+  'rag-unverified',
+  'evidence-insufficient',
+  'evidence-contradicts',
+  'card-unsupported',
+  'ambiguous-evidence',
+  'grounding-unchecked',
+]);
+
 /** Problems with what an act cites, as opposed to how it is built. */
 const GROUNDING_CODES = new Set([
   'missing-evidence',
@@ -548,7 +583,15 @@ const GROUNDING_CODES = new Set([
   'card-unsupported',
   'ambiguous-evidence',
   'grounding-unchecked',
+  'rag-start-wins',
+  'rag-unwinnable',
+  'rag-unverified',
 ]);
+
+/** "chunks of 120 words with 15 of overlap, 3 in the satchel, reranked, grounding rule on". */
+function describeFix(p: RagParams): string {
+  return `chunks of ${p.chunkSize} words with ${p.overlap} of overlap, ${p.k} in the satchel${p.rerank ? ', reranked' : ''}${p.rule === 'grounded' ? ', grounding rule on' : ''}`;
+}
 
 interface CheckInput {
   acts: ActSpec[];
@@ -579,6 +622,44 @@ async function validateAndJudge(input: CheckInput): Promise<{
   const judged = await Promise.all(
     input.acts.map(async (act, i) => {
       const mechanic = act.mechanic;
+      // A retrieval act over the chapter is played live, here, before anyone
+      // else plays it: its broken start must lose and a real fix must win.
+      if (mechanic.type === 'ai-system' && mechanic.corpus === 'chapter' && !failing.has(i)) {
+        if (mechanic.verified?.startLost && mechanic.verified.fix) {
+          return { act, errors: [] as ValidationError[] };
+        }
+        try {
+          const { verified, problems } = await verifyChapterAct(mechanic, chapterText);
+          emit(
+            event(
+              PLAY_TESTER,
+              problems.length ? 'rejected' : 'done',
+              problems.length
+                ? `${act.id}: ran the retrieval act live over the chapter — ${problems.map((p) => p.code).join(', ')}.`
+                : `${act.id}: ran the retrieval act live over the chapter — the broken start loses, and ${describeFix(verified.fix!)} wins.`,
+            ),
+          );
+          return {
+            act: { ...act, mechanic: { ...mechanic, verified } },
+            errors: problems.map((p) => ({
+              path: `acts[${i}].mechanic`,
+              code: p.code,
+              message: p.message,
+            })),
+          };
+        } catch (err) {
+          return {
+            act,
+            errors: [
+              {
+                path: `acts[${i}].mechanic`,
+                code: 'rag-unverified',
+                message: `the act could not be run live: ${brief(err)}`,
+              },
+            ],
+          };
+        }
+      }
       if (!isGrounded(mechanic) || failing.has(i)) return { act, errors: [] as ValidationError[] };
       // A cached act already judged clean is not paid for twice.
       if (mechanic.grounding && assess(mechanic, mechanic.grounding).length === 0) {
