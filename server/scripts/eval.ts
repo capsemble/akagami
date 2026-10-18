@@ -62,6 +62,7 @@ interface ChapterReport {
   repairs: number;
   playtests: number;
   playtestPasses: number;
+  ragVerified: number;
   rulesPruned: number;
   actsCut: number;
   judgeRejections: number;
@@ -96,6 +97,7 @@ async function evaluate(file: string): Promise<ChapterReport> {
     repairs: 0,
     playtests: 0,
     playtestPasses: 0,
+    ragVerified: 0,
     rulesPruned: 0,
     actsCut: 0,
     judgeRejections: 0,
@@ -106,7 +108,18 @@ async function evaluate(file: string): Promise<ChapterReport> {
       ...base,
       repairs: count(events, (e) => e.agent === 'Act writer' && e.kind === 'repair'),
       playtests: count(events, (e) => e.agent === 'Play-tester' && e.kind === 'start'),
-      playtestPasses: count(events, (e) => e.agent === 'Play-tester' && e.kind === 'done'),
+      // The live verification of retrieval acts reports under the same agent;
+      // it is not a play-test and is counted on its own.
+      playtestPasses: count(
+        events,
+        (e) =>
+          e.agent === 'Play-tester' && e.kind === 'done' && !/retrieval act live/.test(e.message),
+      ),
+      ragVerified: count(
+        events,
+        (e) =>
+          e.agent === 'Play-tester' && e.kind === 'done' && /retrieval act live/.test(e.message),
+      ),
       rulesPruned: events
         .filter((e) => e.agent === 'Evidence judge' && e.kind === 'repair')
         .reduce((n, e) => n + Number(/dropped (\d+) rule/.exec(e.message)?.[1] ?? 0), 0),
@@ -209,6 +222,8 @@ async function main() {
     repairs: reports.reduce((n, r) => n + r.repairs, 0),
     playtests: reports.reduce((n, r) => n + r.playtests, 0),
     playtestPasses: reports.reduce((n, r) => n + r.playtestPasses, 0),
+    ragVerified: reports.reduce((n, r) => n + r.ragVerified, 0),
+    ragActs: acts.filter((a) => a.mechanic === 'ai-system').length,
     rulesPruned: reports.reduce((n, r) => n + r.rulesPruned, 0),
     actsCut: reports.reduce((n, r) => n + r.actsCut, 0),
     citationsVerbatim: acts.reduce((n, a) => n + a.citations, 0),
@@ -232,6 +247,7 @@ async function main() {
     `| Acts that can be finished | ${totals.actsFinishable}/${totals.actsShipped} |`,
     `| Valid on the first pass | ${totals.firstPassValid}/${built.length} worlds |`,
     `| Repairs · play-tests (passed) · rules pruned · acts cut | ${totals.repairs} · ${totals.playtests} (${totals.playtestPasses}) · ${totals.rulesPruned} · ${totals.actsCut} |`,
+    `| Retrieval acts run live over their own chapter (start loses, a fix wins) | ${totals.ragVerified}/${totals.ragActs} |`,
     `| Citations checked word-for-word against the notes | ${totals.citationsVerbatim} |`,
     `| Evidence-judge verdicts recorded | ${totals.judgeVerdicts} |`,
     `| Worst-case odds of winning an act by guessing | ${totals.worstGuessRate === null ? '—' : `${(totals.worstGuessRate * 100).toFixed(1)}%`} |`,

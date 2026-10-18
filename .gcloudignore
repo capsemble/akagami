@@ -1,0 +1,31 @@
+# What `gcloud run deploy --source .` uploads to Cloud Build.
+#
+# Without this file gcloud falls back to .gitignore, which excludes
+# server/.cache/ — and that is where every built world, its painted art and
+# its cached Oracle runs live. The Dockerfile copies server/.cache into the
+# image so the deployed app opens on the curated demo worlds; leaving it out of
+# the upload fails the build at that COPY.
+
+.gcloudignore
+.git/
+.github/
+
+# Secrets never leave this machine; Cloud Run reads the key from Secret Manager.
+.env
+.env.*
+!.env.example
+
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+tmp/
+*.tsbuildinfo
+.DS_Store
+
+# Raw art plates (the game loads the baked PNGs in web/public/dressing).
+server/.cache/dressing/
+
+# Submission material, not part of the app.
+*.pptx
+*.pdf

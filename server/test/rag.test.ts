@@ -10,6 +10,13 @@ import { test } from 'node:test';
 import type { RagRunResponse } from '@chapter-quest/shared';
 import type { RagDeps } from '../src/rag.js';
 import { chunkScrolls, cosine, keyFacts, lessonOf, loadLibrary, runRag } from '../src/rag.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { chapterRagProblems, paragraphsOf } from '../src/corpus.js';
+import { repoRoot } from '../src/paths.js';
+import { chapterCorpus, verifyChapterAct } from '../src/rag.js';
+import { validateAiSystemMechanics } from '../src/validate.js';
+import type { ActSpec } from '@chapter-quest/shared';
 
 const Q1 = 'What dose did the Archivist record, and when?';
 const Q2 = 'What dose did the Archivist record, and who approved it?';
@@ -201,4 +208,120 @@ test('cosine is the cosine', () => {
   assert.equal(cosine([1, 0], [1, 0]), 1);
   assert.equal(cosine([1, 0], [0, 1]), 0);
   assert.equal(cosine([0, 0], [1, 1]), 0);
+});
+
+// --- the chapter as its own library -----------------------------------------------------
+
+const RAG_CHAPTER = readFileSync(
+  join(repoRoot, 'server/scripts/fixtures/sample-chapter.md'),
+  'utf8',
+);
+const P05 = paragraphsOf(RAG_CHAPTER).find((p) => /^Cut too small/.test(p.text))!.text;
+
+test('a chapter becomes its own library: paragraphs, headings folded into what follows', () => {
+  const scrolls = paragraphsOf(RAG_CHAPTER);
+  assert.equal(scrolls[0]!.id, 'p01');
+  assert.ok(scrolls.every((s) => s.text.split(' ').length >= 12));
+  assert.ok(
+    scrolls.some((s) =>
+      /^7\.2 Chunking: where the scissors fall Documents are too long/.test(s.text),
+    ),
+  );
+});
+
+test('DETERMINISTIC: a chunking act whose key facts sit together would be free, and is refused', () => {
+  const together = chapterRagProblems(RAG_CHAPTER, {
+    ragAct: 'chunking',
+    keyFacts: ['forty milligrams', 'taken at dusk'],
+  });
+  assert.deepEqual(
+    together.map((p) => p.code),
+    ['rag-start-intact'],
+  );
+  const apart = chapterRagProblems(RAG_CHAPTER, {
+    ragAct: 'chunking',
+    keyFacts: ['Cut too small', 'half a fact'],
+  });
+  assert.deepEqual(
+    apart,
+    [],
+    '40-word chunks tear these apart, 120-word chunks keep them together',
+  );
+});
+
+test('DETERMINISTIC: a top-k act on facts many passages share could be lean with eight, and is refused', () => {
+  assert.deepEqual(
+    chapterRagProblems(RAG_CHAPTER, { ragAct: 'topk', keyFacts: ['chunk', 'retrieval'] }).map(
+      (p) => p.code,
+    ),
+    ['rag-start-lean'],
+  );
+  assert.deepEqual(
+    chapterRagProblems(RAG_CHAPTER, {
+      ragAct: 'grounding',
+      keyFacts: ['half a fact', 'Cut too small'],
+    }).map((p) => p.code),
+    ['rag-nothing-to-ground'],
+  );
+});
+
+test('the validator checks the passage is verbatim and the key facts are inside it', () => {
+  const act = (mechanic: object) => ({ mechanic }) as unknown as ActSpec;
+  const base = {
+    type: 'ai-system',
+    ragAct: 'chunking',
+    question: 'Why does a small chunk give a wrong answer?',
+    goldFact: 'the chunk holds half a fact',
+    corpus: 'chapter',
+    goldQuote: P05,
+    keyFacts: ['Cut too small', 'half a fact'],
+  };
+  assert.deepEqual(validateAiSystemMechanics([act(base)], RAG_CHAPTER).errors, []);
+  const recalled = validateAiSystemMechanics(
+    [
+      act({
+        ...base,
+        goldQuote: 'If you cut too small a chunk, the model only gets half of the fact it needs.',
+      }),
+    ],
+    RAG_CHAPTER,
+  ).errors;
+  assert.ok(recalled.some((e) => e.code === 'evidence-not-in-source'));
+  const outside = validateAiSystemMechanics(
+    [act({ ...base, keyFacts: ['Cut too small', 'reranking'] })],
+    RAG_CHAPTER,
+  ).errors;
+  assert.ok(outside.some((e) => e.code === 'key-fact-not-in-quote'));
+});
+
+test('verification plays the act on the pipeline: the torn start loses, the first real fix wins', async () => {
+  // A fake embedding that prefers passages sharing the question's words, and a
+  // fake Oracle that answers correctly whatever it is handed: what decides the
+  // lesson here is the retrieval — which chunk carries the whole fact.
+  const words = ['cut', 'small', 'half', 'fact', 'chunk'];
+  const deps: RagDeps = {
+    embed: async (texts) =>
+      texts.map((t) => words.map((w) => (t.toLowerCase().includes(w) ? 1 : 0) + 0.01)),
+    ask: async <T>(_p: string, _s: object, _r: 'text' | 'fast', system: string) =>
+      (/check an answer/.test(system)
+        ? { unsupported: [] }
+        : /rank passages/.test(system)
+          ? { scores: [] }
+          : { answer: 'Cut too small, the chunk holds half a fact.' }) as T,
+    models: { embed: 'fake-embed-v', answer: 'fake-answer', judge: 'fake-judge' },
+  };
+  const mechanic = {
+    ragAct: 'chunking' as const,
+    question: 'Cut too small: why does the chunk hold half a fact?',
+    keyFacts: ['Cut too small', 'half a fact'],
+  };
+  const { verified, problems } = await verifyChapterAct(mechanic, RAG_CHAPTER, deps);
+  assert.deepEqual(problems, []);
+  assert.equal(verified.startLost, true);
+  assert.deepEqual(verified.fix, { chunkSize: 120, overlap: 15, k: 3, rerank: false });
+
+  // The corpus the runtime uses is the same one: same facts, same chunks.
+  const corpus = chapterCorpus(RAG_CHAPTER, mechanic);
+  assert.equal(corpus.facts.length, 2);
+  assert.ok(corpus.scrolls.some((s) => s.text === P05));
 });

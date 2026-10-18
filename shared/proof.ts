@@ -30,6 +30,8 @@ export interface Proof {
   /** Fraction of random attempts that win. */
   guessRate: number | null;
   citations: Citation[];
+  /** What kind of proof this is, when the default footnote would be wrong. */
+  note?: string;
   /** The evidence judge's record, when the act has one. */
   judge?: { model: string; verdicts: number; checkedAt: string };
 }
@@ -86,6 +88,27 @@ export function proofOf(act: { mechanic?: Mechanic; stage?: ActStage }): Proof |
     }));
   }
 
+  if (m.type === 'ai-system' && m.corpus === 'chapter') {
+    const fix = m.verified?.fix;
+    checks.push(
+      {
+        label: 'The starting satchel was run live over your chapter, and loses',
+        ok: m.verified?.startLost === true,
+      },
+      {
+        label: fix
+          ? `A fix was run live and wins: ${fix.chunkSize}-word chunks, ${fix.overlap} overlap, ${fix.k} in the satchel${fix.rerank ? ', reranked' : ''}${fix.rule === 'grounded' ? ', grounding rule on' : ''}`
+          : 'No fix has been shown to win',
+        ok: !!fix,
+      },
+    );
+    if (m.goldQuote) citations = [{ claim: `The answer: ${m.goldFact}`, quotes: [m.goldQuote] }];
+  }
+  const note =
+    m.type === 'ai-system' && m.corpus === 'chapter'
+      ? 'The two runs went through the real pipeline — Gemini embeddings, retrieval, a Gemini answer and a judge — so they are a measurement, not a proof. The passage was found word for word in your notes by code.'
+      : undefined;
+
   const grounding = m.type === 'sequence' || m.type === 'evidence' ? m.grounding : undefined;
   if (citations.length) {
     checks.push({
@@ -97,6 +120,7 @@ export function proofOf(act: { mechanic?: Mechanic; stage?: ActStage }): Proof |
     checks,
     guessRate,
     citations,
+    ...(note ? { note } : {}),
     ...(grounding
       ? {
           judge: {

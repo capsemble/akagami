@@ -20,7 +20,7 @@ import type { Part, Schema } from '@google/genai';
 import type { AgentEvent } from '@chapter-quest/shared';
 import * as fastrouter from './providers/fastrouter.js';
 
-export type Provider = 'google' | 'fastrouter';
+export type Provider = 'google' | 'vertex' | 'fastrouter';
 
 /**
  * Which backend the models come from.
@@ -28,6 +28,11 @@ export type Provider = 'google' | 'fastrouter';
  * Set MODEL_PROVIDER to force it. Otherwise: a FastRouter key means FastRouter,
  * because nobody sets that key by accident, and the Google path only works
  * while that project still has quota.
+ *
+ * `vertex` is the same Gemini models through Vertex AI: no API key, the
+ * service account the server runs as, billed to the Cloud project. It is what
+ * Cloud Run uses — the AI Studio key path bills a separate prepaid balance,
+ * and an empty one answers every call with 402.
  */
 export const PROVIDER: Provider =
   (process.env.MODEL_PROVIDER as Provider | undefined) ??
@@ -63,6 +68,13 @@ const DEFAULTS: Record<Provider, Record<'design' | 'text' | 'fast' | 'image' | '
     fast: 'gemini-3.5-flash-lite',
     image: 'gemini-nano-banana-2.1',
     embed: 'gemini-embedding-2',
+  },
+  vertex: {
+    design: 'gemini-4-argon',
+    text: 'gemini-3.8-flash',
+    fast: 'gemini-3.5-flash-lite',
+    image: 'gemini-nano-banana-2.1',
+    embed: 'gemini-embedding-001',
   },
   fastrouter: {
     design: 'google/gemini-4-argon',
@@ -189,6 +201,17 @@ function spendCall(model: string): void {
 let client: GoogleGenAI | null = null;
 
 export function gemini(): GoogleGenAI {
+  if (!client && PROVIDER === 'vertex') {
+    // Credentials come from the environment: Cloud Run's service account in
+    // production, `gcloud auth application-default login` on a laptop.
+    const project = process.env.VERTEX_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT;
+    if (!project) throw new Error('VERTEX_PROJECT is not set (the Cloud project to bill Gemini to)');
+    client = new GoogleGenAI({
+      vertexai: true,
+      project,
+      location: process.env.VERTEX_LOCATION ?? 'global',
+    });
+  }
   if (!client) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY is not set (see .env.example)');

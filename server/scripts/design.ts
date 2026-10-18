@@ -36,7 +36,11 @@ async function main() {
     process.exit(1);
   }
   const { PROVIDER } = await import('../src/gemini.js');
-  const keyFor = { google: 'GEMINI_API_KEY', fastrouter: 'FASTROUTER_API_KEY' } as const;
+  const keyFor = {
+    google: 'GEMINI_API_KEY',
+    vertex: 'VERTEX_PROJECT',
+    fastrouter: 'FASTROUTER_API_KEY',
+  } as const;
   if (!process.env[keyFor[PROVIDER]]) {
     console.error(`${keyFor[PROVIDER]} missing. Copy .env.example to .env and put your key in it.`);
     process.exit(1);
