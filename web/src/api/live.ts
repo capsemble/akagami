@@ -1,6 +1,17 @@
 import type { AgentEvent, RagRunRequest } from '@chapter-quest/shared';
 import type { AdaptRequest, ApiClient, BuiltWorld, NpcTurnRequest } from './types';
 
+const isPdf = (file: File) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+/** The file's bytes as base64, without the data-URL prefix. */
+const base64Of = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -16,10 +27,14 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 export const liveApi: ApiClient = {
   async createWorld(input) {
     // Chapters go up as text in the JSON body (hence the server's 20 MB limit).
+    // A PDF goes up as base64 for the server to read: file.text() on a PDF is
+    // the raw binary, which the pipeline would take for notes.
     const payload =
       typeof input === 'string'
         ? { text: input }
-        : { filename: input.name, text: await input.text() };
+        : isPdf(input)
+          ? { filename: input.name, pdf: await base64Of(input) }
+          : { filename: input.name, text: await input.text() };
     return json('/api/worlds', { method: 'POST', body: JSON.stringify(payload) });
   },
 

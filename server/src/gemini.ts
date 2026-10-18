@@ -85,11 +85,20 @@ const DEFAULTS: Record<Provider, Record<'design' | 'text' | 'fast' | 'image' | '
   },
 };
 
+/**
+ * Painting can go through a different provider from the text. A new Vertex
+ * project is throttled to about one Nano Banana image a minute, and a world
+ * wants twenty; the router paints three at once. IMAGE_PROVIDER=fastrouter
+ * keeps every text call on Vertex and sends only the paintings there.
+ */
+export const IMAGE_PROVIDER: Provider =
+  (process.env.IMAGE_PROVIDER as Provider | undefined) ?? PROVIDER;
+
 export const MODELS = {
   design: process.env.DESIGN_MODEL ?? DEFAULTS[PROVIDER].design,
   text: process.env.TEXT_MODEL ?? DEFAULTS[PROVIDER].text,
   fast: process.env.FAST_MODEL ?? DEFAULTS[PROVIDER].fast,
-  image: process.env.IMAGE_MODEL ?? DEFAULTS[PROVIDER].image,
+  image: process.env.IMAGE_MODEL ?? DEFAULTS[IMAGE_PROVIDER].image,
   embed: process.env.EMBED_MODEL ?? DEFAULTS[PROVIDER].embed,
 };
 
@@ -110,8 +119,11 @@ const ROLE_MODEL: Record<ModelRole, () => string> = {
   fast: () => MODELS.fast,
 };
 
-/** How long we wait on a design call before falling back to TEXT_MODEL. */
-const DESIGN_TIMEOUT_MS = 60_000;
+/**
+ * How long we wait on a design call before falling back to TEXT_MODEL. Argon
+ * on Vertex thinks longer than through the router, so production raises it.
+ */
+const DESIGN_TIMEOUT_MS = Number(process.env.DESIGN_TIMEOUT_MS ?? 60_000) || 60_000;
 
 type AgentEventListener = (event: AgentEvent) => void;
 const agentListeners = new Set<AgentEventListener>();
@@ -245,8 +257,24 @@ export function classifyFailure(err: unknown): FailureKind {
   return 'fatal';
 }
 
-/** Attempts and backoff per failure kind. */
-export function retryPlan(kind: FailureKind, attempt: number): { retry: boolean; waitMs: number } {
+/**
+ * Attempts and backoff per failure kind. On Vertex a 429 is not a spent daily
+ * quota: pay-as-you-go Gemini there has none, and RESOURCE_EXHAUSTED means a
+ * per-minute or shared-capacity limit that clears in seconds. Handing over
+ * after one 800ms retry cost a live build twelve of its paintings (images have
+ * no fallback model) and sent Argon's design calls to Flash.
+ */
+export function retryPlan(
+  kind: FailureKind,
+  attempt: number,
+  provider: string = PROVIDER,
+): { retry: boolean; waitMs: number } {
+  if (kind === 'quota' && provider === 'vertex') {
+    // ~50s of patience: 2, 4, 8, 16, 20.
+    return attempt < 5
+      ? { retry: true, waitMs: Math.min(20_000, 2000 * 2 ** attempt) }
+      : { retry: false, waitMs: 0 };
+  }
   if (kind === 'overload') {
     // ~40s of patience in total, which covers the spikes we actually see.
     return attempt < 5
@@ -577,7 +605,7 @@ export async function generateImage(
   refs: ImageRef[] = [],
 ): Promise<GeneratedImage> {
   const painted = await withRetry('generateImage', MODELS.image, async () => {
-    if (PROVIDER === 'fastrouter') {
+    if (IMAGE_PROVIDER === 'fastrouter') {
       return fastrouter.image(MODELS.image, prompt, refs);
     }
     const parts: Part[] = [

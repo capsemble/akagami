@@ -102,6 +102,13 @@ function plate(artStyle: string): string {
   ].join(' ');
 }
 
+/**
+ * Sprites ask for plain white, never "transparent": an image model cannot
+ * paint alpha, so it paints a grey checkerboard that looks like it, and the
+ * client's keyer (which floods one flat field colour) cannot lift that off.
+ * The guide on a live build stood in front of its own checkerboard and fell
+ * back to the drawn figure.
+ */
 function characterPrompt(
   member: CastMember,
   artStyle: string,
@@ -110,7 +117,7 @@ function characterPrompt(
   const shared = `${member.name}: ${member.look}. ${artStyle}. Match the supplied style plate exactly.`;
   return kind === 'portrait'
     ? `${shared} Head-and-shoulders portrait, facing the viewer, neutral expression, plain dark background, square framing, no text.`
-    : `${shared} Full body game sprite, three-quarter view from slightly above to suit an isometric scene, standing idle, transparent background, crisp edges, no shadow baked in, no text.`;
+    : `${shared} Full body game sprite, three-quarter view from slightly above to suit an isometric scene, standing idle, exactly one figure in one pose (not a character sheet or turnaround), on a flat plain white background, crisp edges, no shadow baked in, no text.`;
 }
 
 /**

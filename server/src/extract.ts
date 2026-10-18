@@ -32,9 +32,13 @@ export function joinPages(pages: Page[]): string {
 }
 
 async function extractPdf(path: string): Promise<ExtractedChapter> {
+  return extractPdfBytes(await readFile(path), path);
+}
+
+/** A PDF that arrived as bytes (an upload) rather than as a file on disk. */
+export async function extractPdfBytes(bytes: Buffer, source: string): Promise<ExtractedChapter> {
   // The legacy build is the one that runs under Node without a DOM.
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const bytes = await readFile(path);
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(bytes),
     // No worker thread: simpler, and a chapter is small enough not to care.
@@ -57,7 +61,7 @@ async function extractPdf(path: string): Promise<ExtractedChapter> {
   await loadingTask.destroy();
 
   const text = joinPages(pages);
-  return { text, pages, source: path, hash: hashText(text), pdf: bytes };
+  return { text, pages, source, hash: hashText(text), pdf: bytes };
 }
 
 /** Markdown and plain text have no pages, so we cut them into ~500-word ones. */
