@@ -545,8 +545,21 @@ Mechanic rules:
   A judge reads every claim against every document: a decoy that backs any
   claim, or a link the excerpt does not establish, rejects the act. Use the
   verbs "deduction" and "interrogate".
-- ai-system: pick the ragAct the concept is really about, and write the goldFact
-  as the exact fact a correct answer must contain.
+- ai-system: the act is played over THIS chapter — the chapter itself is the
+  library the Oracle's satchel is filled from, cut into chunks and retrieved
+  for real with embeddings. Unlike the Oracle exemplar, there are no invented
+  scrolls. Choose ragAct from chunking, topk or grounding — whichever the
+  concept is really about. "question" is one the chapter answers in a single
+  passage; "goldQuote" is that passage copied WORD FOR WORD; "keyFacts" are 2
+  to 4 short phrases (1–4 words each) copied from goldQuote that any correct
+  answer must contain word for word — distinctive terms, not common words.
+  chunking: pick key facts more than 40 words apart in the passage, so cutting
+    the chapter into 40-word pieces tears them apart, while 120 words holds them.
+  topk: pick key facts that only this one passage contains.
+  grounding: add to the question a second part the chapter never answers, and
+    put that part in "silentOn"; the honest answer says the chapter is silent.
+  The game runs the act live before shipping it: the broken starting satchel
+  must lose and a real fix must win, or the act is rejected.
 - qualitative: rubric.mustShow is what the player must say or do; keep it
   observable, not "understands the concept".
 

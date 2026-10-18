@@ -77,9 +77,11 @@ export function ProofPanel({ title, proof, onClose }: Props) {
       ) : null}
 
       <p style={styles.footnote}>
-        {proof.judge
-          ? `Every quotation above was found word for word in your notes by code. Whether each one supports its rule was read by ${proof.judge.model} (${proof.judge.verdicts} checks) — a model's reading, not a formal proof.`
-          : 'The checks above are run by the game’s own simulator, not by a model.'}
+        {proof.note
+          ? proof.note
+          : proof.judge
+            ? `Every quotation above was found word for word in your notes by code. Whether each one supports its rule was read by ${proof.judge.model} (${proof.judge.verdicts} checks) — a model's reading, not a formal proof.`
+            : 'The checks above are run by the game’s own simulator, not by a model.'}
       </p>
     </section>
   );

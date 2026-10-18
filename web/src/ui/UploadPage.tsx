@@ -11,6 +11,18 @@ interface Props {
   onOpen: (id: string) => void;
 }
 
+/**
+ * The worlds the demo buttons open: built from real chapters by the pipeline,
+ * verified, and painted — one for each kind of play. Shown only when this
+ * server actually has them; without them (mock mode, a fresh machine) the
+ * prepared demo worlds stand in, so the buttons never lead nowhere.
+ */
+const DEMO_WORLDS: { id: string; label: string }[] = [
+  { id: 'world-3ba2a1393342', label: 'RAG, retrieved live from the chapter itself' },
+  { id: 'world-2c74bb2209b5', label: 'Chemistry, on the real simulator' },
+  { id: 'world-47f0a228bd91', label: 'History, evidence boards and causal order' },
+];
+
 /** "3 minutes ago", roughly. A build is recent or it is not. */
 function when(ms: number): string {
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
@@ -44,6 +56,10 @@ export function UploadPage({ busy, error, onSubmit, onOpen }: Props) {
   }, []);
 
   const canSubmit = !busy && (file !== null || text.trim().length > 0);
+  const featured = DEMO_WORLDS.flatMap((demo) => {
+    const world = built.find((w) => w.id === demo.id);
+    return world ? [{ ...demo, title: world.title }] : [];
+  });
 
   return (
     <main style={styles.page}>
@@ -107,32 +123,50 @@ export function UploadPage({ busy, error, onSubmit, onOpen }: Props) {
           {busy ? 'Building the world…' : 'Build my world'}
         </button>
 
-        <div style={styles.demos}>
-          <button
-            type="button"
-            onClick={() => onSubmit('demo:kinematics')}
-            disabled={busy}
-            style={styles.ghost}
-          >
-            Skip — play the kinematics demo
-          </button>
-          <button
-            type="button"
-            onClick={() => onSubmit('demo:rag')}
-            disabled={busy}
-            style={styles.ghost}
-          >
-            …or the RAG one
-          </button>
-          <button
-            type="button"
-            onClick={() => onSubmit('demo:machine')}
-            disabled={busy}
-            style={styles.ghost}
-          >
-            …or The Impossible Machine
-          </button>
-        </div>
+        {featured.length > 0 ? (
+          <div style={styles.featured}>
+            <span style={styles.demoHead}>Or play one we built:</span>
+            {featured.map((demo) => (
+              <button
+                key={demo.id}
+                type="button"
+                onClick={() => onOpen(demo.id)}
+                disabled={busy}
+                style={styles.featuredButton}
+              >
+                <span style={styles.featuredTitle}>▶ {demo.title}</span>
+                <span style={styles.featuredLabel}>{demo.label}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={styles.demos}>
+            <button
+              type="button"
+              onClick={() => onSubmit('demo:kinematics')}
+              disabled={busy}
+              style={styles.ghost}
+            >
+              Skip — play the kinematics demo
+            </button>
+            <button
+              type="button"
+              onClick={() => onSubmit('demo:rag')}
+              disabled={busy}
+              style={styles.ghost}
+            >
+              …or the RAG one
+            </button>
+            <button
+              type="button"
+              onClick={() => onSubmit('demo:machine')}
+              disabled={busy}
+              style={styles.ghost}
+            >
+              …or The Impossible Machine
+            </button>
+          </div>
+        )}
 
         {built.length > 0 ? (
           <section style={styles.library}>
@@ -205,6 +239,23 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
   },
   demos: { display: 'flex', gap: space.sm },
+  // The pinned demo worlds: one per kind of play, stacked so each can say what it is.
+  featured: { display: 'flex', flexDirection: 'column', gap: space.xs },
+  demoHead: { fontSize: 12, color: `${colors.parchment}88` },
+  featuredButton: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: space.sm,
+    padding: `${space.sm}px ${space.md}px`,
+    borderRadius: radii.chip,
+    border: `1px solid ${colors.gold}55`,
+    background: 'transparent',
+    textAlign: 'left',
+  },
+  featuredTitle: { fontFamily: fonts.header, fontSize: 15, color: colors.gold },
+  featuredLabel: { fontSize: 12.5, color: `${colors.parchment}aa` },
   ghost: {
     flex: 1,
     padding: space.sm,
@@ -239,7 +290,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: `${colors.gold}cc`,
     letterSpacing: 0.4,
   },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: space.xs },
+  list: {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.xs,
+  },
   entry: {
     width: '100%',
     display: 'flex',
@@ -253,7 +311,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.parchment,
     cursor: 'pointer',
   },
-  entryTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: space.sm },
+  entryTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: space.sm,
+  },
   entryTitle: { fontWeight: 700, color: colors.gold },
   entryMeta: { fontSize: 12, color: `${colors.parchment}77`, whiteSpace: 'nowrap' },
   entryLine: {
