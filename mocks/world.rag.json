@@ -62,7 +62,20 @@
           "mood": "worried",
           "line": "Forty what? The unit is on the table behind you."
         }
-      ]
+      ],
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "chunking",
+        "question": "What dose did the Archivist record, and when?",
+        "goldFact": "forty milligrams, taken at dusk on the third night",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 40,
+          "overlap": 0,
+          "k": 3,
+          "rerank": false
+        }
+      }
     },
     {
       "id": "act3",
@@ -97,7 +110,20 @@
           "mood": "worried",
           "line": "Two of those three came from scrolls about a different library."
         }
-      ]
+      ],
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "topk",
+        "question": "What dose did the Archivist record, and when?",
+        "goldFact": "forty milligrams, taken at dusk on the third night",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 120,
+          "overlap": 15,
+          "k": 8,
+          "rerank": false
+        }
+      }
     },
     {
       "id": "act4",
@@ -132,7 +158,20 @@
           "mood": "worried",
           "line": "I have no scroll for the second part."
         }
-      ]
+      ],
+      "mechanic": {
+        "type": "ai-system",
+        "ragAct": "grounding",
+        "question": "What dose did the Archivist record, and who approved it?",
+        "goldFact": "forty milligrams, taken at dusk on the third night; no scroll records who approved it",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 120,
+          "overlap": 15,
+          "k": 8,
+          "rerank": false
+        }
+      }
     }
   ]
 }

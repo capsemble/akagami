@@ -66,10 +66,11 @@
     {
       "id": "brake-lever",
       "x": 420,
-      "y": 470,
+      "y": 620,
       "w": 120,
       "h": 120,
-      "height": 90
+      "height": 90,
+      "label": "Wagon brake"
     },
     {
       "id": "water-tank",
@@ -77,7 +78,8 @@
       "y": 300,
       "w": 200,
       "h": 200,
-      "height": 260
+      "height": 260,
+      "label": "Pathargarh water tower"
     }
   ],
   "exits": [
@@ -94,12 +96,12 @@
   },
   "npcSpots": {
     "rane": {
-      "x": 640,
-      "y": 620
+      "x": 620,
+      "y": 660
     },
     "dalvi": {
       "x": 980,
-      "y": 500
+      "y": 650
     }
   }
 }

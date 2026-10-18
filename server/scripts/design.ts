@@ -3,6 +3,7 @@
  *
  *   npm run design -- server/scripts/fixtures/sample-chapter.md
  *   npm run design -- chapter.pdf --fresh
+ *   npm run design -- notes.md --fresh --no-art   # script only, no image calls
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -27,14 +28,17 @@ const KIND_COLOR: Record<string, string> = {
 async function main() {
   const args = process.argv.slice(2);
   const fresh = args.includes('--fresh');
+  const skipArt = args.includes('--no-art');
   const input = args.find((a) => !a.startsWith('--'));
 
   if (!input) {
     console.error('usage: npm run design -- <chapter.md|chapter.pdf> [--fresh]');
     process.exit(1);
   }
-  if (!process.env.GEMINI_API_KEY) {
-    console.error('GEMINI_API_KEY missing. Copy .env.example to .env and put your key in it.');
+  const { PROVIDER } = await import('../src/gemini.js');
+  const keyFor = { google: 'GEMINI_API_KEY', fastrouter: 'FASTROUTER_API_KEY' } as const;
+  if (!process.env[keyFor[PROVIDER]]) {
+    console.error(`${keyFor[PROVIDER]} missing. Copy .env.example to .env and put your key in it.`);
     process.exit(1);
   }
 
@@ -48,6 +52,7 @@ async function main() {
   const result = await designWorld({
     chapter,
     fresh,
+    skipArt,
     emit: (e) => {
       const color = KIND_COLOR[e.kind] ?? '';
       const at = ((e.ts - t0) / 1000).toFixed(1).padStart(5);

@@ -49,7 +49,8 @@ test('the style plate is painted first and every later asset is drawn against it
   const { calls, paint } = stub();
   const art = await paintWorld({ ...request, hash: 'style0000000000a' }, paint);
 
-  assert.equal(calls.length, 1 + CAST.length * 2 + PROPS.length);
+  // The plate, a portrait and a sprite per member, the player's walk sheet, the props.
+  assert.equal(calls.length, 1 + CAST.length * 2 + 1 + PROPS.length);
   assert.match(calls[0]!.prompt, /style plate/i, 'the plate has to come first');
   assert.equal(calls[0]!.refs, 0, 'the plate has nothing to match');
   for (const call of calls.slice(1)) {
@@ -58,6 +59,10 @@ test('the style plate is painted first and every later asset is drawn against it
   assert.ok(
     calls.some((c) => c.prompt.includes('wet slate and teak')),
     'style never reached a prompt',
+  );
+  assert.ok(
+    calls.some((c) => /sprite sheet/i.test(c.prompt) && /3 rows and 4 columns/.test(c.prompt)),
+    'the player has to be asked for as one 3 × 4 sheet, or the client cannot cut it',
   );
 
   assert.ok(art.styleUrl);
@@ -93,6 +98,7 @@ test('one refused prompt costs one picture, not the world', async () => {
   assert.match(art.missing[0]!.reason, /refused/);
   assert.equal(art.props['water-tank'], undefined, 'a refused prop must not get a url');
   assert.equal(Object.keys(art.portraits).length, CAST.length, 'the cast was still painted');
+  assert.ok(art.playerSheet, 'one refused prop must not cost the player');
 });
 
 /**
@@ -113,9 +119,46 @@ test('a dead image model degrades to placeholders instead of throwing', async ()
   assert.deepEqual(art.sprites, {});
   assert.deepEqual(art.props, {});
   assert.equal(art.styleUrl, undefined);
-  assert.equal(art.missing.length, 1 + CAST.length * 2 + PROPS.length);
+  assert.equal(art.playerSheet, undefined, 'no sheet: the player stays drawn');
+  assert.equal(art.missing.length, 1 + CAST.length * 2 + 1 + PROPS.length);
   assert.ok(
     events.some((m) => m.includes('placeholder')),
     'the trace has to admit it fell back',
   );
+});
+
+test('assets are painted a few at a time, faces first, and every one is reported', async () => {
+  let running = 0;
+  let widest = 0;
+  const started: string[] = [];
+  const paint: Painter = async (prompt) => {
+    started.push(prompt);
+    running++;
+    widest = Math.max(widest, running);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    running--;
+    return { mimeType: 'image/png', data: 'AA==', bytes: Buffer.from([0x89, 0x50]) };
+  };
+  const events: { kind: string; message: string }[] = [];
+  const art = await paintWorld(
+    {
+      ...request,
+      hash: 'queue00000000001',
+      rooms: [{ id: 'act1', name: 'Signal box', description: 'a cramped signal box' }],
+      emit: (e) => events.push(e),
+    },
+    paint,
+  );
+
+  assert.equal(widest, 3, 'three at once by default, never more');
+  assert.match(started[0]!, /style plate/i, 'the plate still goes alone, first');
+  // The queue is taken in priority order: the room is the last thing started.
+  assert.match(started.at(-1)!, /signal box/i);
+  assert.equal(Object.keys(art.portraits).length, CAST.length);
+  assert.ok(art.rooms?.act1);
+
+  const progress = events.filter((e) => e.kind === 'progress').map((e) => e.message);
+  const total = 1 + CAST.length * 2 + 1 + PROPS.length + 1;
+  assert.equal(progress.length, total - 1, 'one progress line per asset after the plate');
+  assert.match(progress.at(-1)!, new RegExp(`Painted ${total}/${total}`));
 });

@@ -11,7 +11,7 @@ import { DEFAULT_WORLD_ID, loadScene, loadWorld } from '../src/mocks.js';
 test('the default world is the kinematics demo', async () => {
   const world = await loadWorld();
   assert.equal(world.id, DEFAULT_WORLD_ID);
-  assert.equal(world.title, 'The Ghost of Ghat 9');
+  assert.equal(world.title, 'The Ravine at Pathargarh');
 });
 
 test('a world id resolves to that world, not the default', async () => {
@@ -19,7 +19,7 @@ test('a world id resolves to that world, not the default', async () => {
   assert.equal(rag.title, 'The Oracle of the Old Library');
 
   const kinematics = await loadWorld('world-ghat-9');
-  assert.equal(kinematics.title, 'The Ghost of Ghat 9');
+  assert.equal(kinematics.title, 'The Ravine at Pathargarh');
 });
 
 test('short demo names resolve to the same fixtures as ids', async () => {
@@ -66,7 +66,7 @@ test('the kinematics acts all carry a formula mechanic with sane dials', async (
 /**
  * Regression: the build story streamed on the world-forming screen was a single
  * hardcoded RAG trace, so picking the kinematics demo still played 21 seconds of
- * "The Oracle of the Old Library" before dropping you into Ghat 9.
+ * "The Oracle of the Old Library" before dropping you into Pathargarh.
  */
 test('each world streams its own build story', async () => {
   const { loadEvents } = await import('../src/mocks.js');

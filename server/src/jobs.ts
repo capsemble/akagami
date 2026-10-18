@@ -17,7 +17,8 @@ import type { AgentEvent, GameScript, Scene, World } from '@chapter-quest/shared
 import type { ExtractedChapter } from './extract.js';
 import { repoRoot } from './paths.js';
 import { designWorld } from './pipeline/design.js';
-import { mapScenes, toWorld } from './world.js';
+import { UnsupportedChapterError } from './routing.js';
+import { NoPlayableActsError, mapScenes, toWorld } from './world.js';
 
 export type Listener = (event: AgentEvent | null) => void;
 
@@ -71,6 +72,17 @@ export function startDesign(chapter: ExtractedChapter, fresh = false): string {
       const scenes = mapScenes(result.script);
       job.scenes = scenes;
       job.world = toWorld(result.script, scenes);
+      if (result.usedFallback) {
+        // The chapter was read, but no valid game came out of it. The prepared
+        // world stands in, and says so — the silent version of this handed a
+        // computer-vision chapter back as a story about a library.
+        job.world = {
+          ...job.world,
+          id,
+          substituted: `No valid game could be built from this chapter (${result.validation.errors.length} validation problem(s) survived repair), so this is the prepared world, not yours.`,
+        };
+        job.usedFallback = true;
+      }
       push({
         ts: Date.now(),
         agent: 'Orchestrator',
@@ -78,6 +90,14 @@ export function startDesign(chapter: ExtractedChapter, fresh = false): string {
         message: `World ready. ${job.world.acts.length} acts, ${scenes.size} rooms, ${job.world.cast.length} characters. Step in.`,
       });
     } catch (err) {
+      // Not a failure to reach anyone: the chapter was read and nothing in it
+      // fits a mechanic the game can play. Substituting a prepared world here
+      // would be exactly the misleading game this check exists to prevent.
+      if (err instanceof UnsupportedChapterError || err instanceof NoPlayableActsError) {
+        job.error = err.message;
+        push({ ts: Date.now(), agent: 'Orchestrator', kind: 'rejected', message: err.message });
+        return; // `finally` still closes the stream
+      }
       // The models were unreachable — rate limited, overloaded, or down. The
       // pipeline's own fallback only covers a script that fails validation, so
       // a 503 on the way out would otherwise hand the player a dead screen.
@@ -96,7 +116,11 @@ export function startDesign(chapter: ExtractedChapter, fresh = false): string {
         ) as GameScript;
         const scenes = mapScenes(script);
         job.scenes = scenes;
-        job.world = { ...toWorld(script, scenes), id };
+        job.world = {
+          ...toWorld(script, scenes),
+          id,
+          substituted: `The design models could not be reached (${reason.slice(0, 90)}), so this is the prepared world, not yours.`,
+        };
         job.usedFallback = true;
       } catch (inner) {
         job.error = inner instanceof Error ? inner.message : String(inner);

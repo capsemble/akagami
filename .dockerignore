@@ -7,3 +7,5 @@ tmp
 .github
 *.md
 !README.md
+# The Oracle's library is data the server reads, not documentation.
+!mocks/**/*.md

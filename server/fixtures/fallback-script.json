@@ -151,7 +151,14 @@
         "type": "ai-system",
         "ragAct": "chunking",
         "question": "What dose did the Archivist record, and when?",
-        "goldFact": "forty milligrams, taken at dusk on the third night"
+        "goldFact": "forty milligrams, taken at dusk on the third night",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 40,
+          "overlap": 0,
+          "k": 3,
+          "rerank": false
+        }
       }
     },
     {
@@ -209,7 +216,14 @@
         "type": "ai-system",
         "ragAct": "topk",
         "question": "What dose did the Archivist record, and when?",
-        "goldFact": "forty milligrams, taken at dusk on the third night"
+        "goldFact": "forty milligrams, taken at dusk on the third night",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 120,
+          "overlap": 15,
+          "k": 8,
+          "rerank": false
+        }
       }
     },
     {
@@ -267,7 +281,14 @@
         "type": "ai-system",
         "ragAct": "grounding",
         "question": "What dose did the Archivist record, and who approved it?",
-        "goldFact": "forty milligrams, taken at dusk on the third night; no scroll records who approved it"
+        "goldFact": "forty milligrams, taken at dusk on the third night; no scroll records who approved it",
+        "corpus": "oracle",
+        "start": {
+          "chunkSize": 120,
+          "overlap": 15,
+          "k": 8,
+          "rerank": false
+        }
       }
     }
   ]

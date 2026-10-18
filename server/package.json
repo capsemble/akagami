@@ -13,7 +13,11 @@
     "models": "tsx scripts/models.ts",
     "design": "tsx scripts/design.ts",
     "test": "node --test --import tsx test/*.test.ts",
-    "paint": "tsx scripts/paint-demo.ts"
+    "paint": "tsx scripts/paint-demo.ts",
+    "audit": "tsx scripts/audit.ts",
+    "eval": "tsx scripts/eval.ts",
+    "room": "tsx scripts/room.ts",
+    "dress": "tsx scripts/dress.ts"
   },
   "dependencies": {
     "@chapter-quest/shared": "^0.1.0",

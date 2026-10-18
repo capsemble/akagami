@@ -1,14 +1,14 @@
 {
   "id": "world-ghat-9",
-  "title": "The Ghost of Ghat 9",
-  "logline": "A bandit robs the monsoon mail train at a bend nobody can reach in time — unless the timetable itself is lying.",
-  "artStyle": "Isometric 1950s hill railway: wet slate, rust and teak, lantern light through rain, muted teal and ochre, 2:1 dimetric.",
+  "title": "The Ravine at Pathargarh",
+  "logline": "Bhairav Singh's men take the grain train where the line bends through Teen Mod \u2014 and the one man who swears the ravine cannot be reached in time is the man who writes the timings.",
+  "artStyle": "Ochre dust and bleached khaki, long shadows at four in the afternoon, heat haze over stone, a single red scarf against the ravine wall.",
   "status": "ready",
   "cast": [
     {
       "id": "rane",
-      "name": "Inspector Rane",
-      "persona": "Soaked khaki and a notebook with swollen pages. Patient to the point of rudeness, asks the obvious question twice, and writes down the answer both times.",
+      "name": "Subedar Hari Pawar",
+      "persona": "Retired, one arm, and the only man in the district Bhairav has never bought. Asks the obvious question twice.",
       "portraits": {
         "neutral": "/mock-art/portraits/rane-neutral.svg",
         "pleased": "/mock-art/portraits/rane-pleased.svg",
@@ -18,8 +18,8 @@
     },
     {
       "id": "dalvi",
-      "name": "Station Master Dalvi",
-      "persona": "Brass buttons and an umbrella he never opens. Helpful to a fault, quotes the timetable as scripture, and cannot see that an average over a route says nothing about any single moment of it.",
+      "name": "Station Master Girdhari Lal",
+      "persona": "Helpful to a fault, quotes his own register as scripture, and has never been asked to prove a line of it.",
       "portraits": {
         "neutral": "/mock-art/portraits/dalvi-neutral.svg",
         "pleased": "/mock-art/portraits/dalvi-pleased.svg",
@@ -32,12 +32,15 @@
     {
       "id": "act1",
       "conceptId": "average-speed",
-      "title": "The Alibi",
-      "goal": "Dalvi's book puts the guard six kilometres up the ghat in ten minutes. Show him what that would take.",
-      "verbs": ["deduction", "interrogate"],
+      "title": "Bhairav's Alibi",
+      "goal": "Girdhari swears Bhairav was at the Pathargarh temple ten minutes before the train was hit, six kilometres up the line. Set the reckoning board to the speed that would take, and show him what he is claiming.",
+      "verbs": [
+        "deduction",
+        "interrogate"
+      ],
       "sceneId": "scene-signal-box",
       "prediction": {
-        "question": "Dalvi says the guard walked 6 km up the ghat in 10 minutes. Before you compute anything — is that possible?",
+        "question": "Girdhari says Bhairav walked the six kilometres from the temple to Teen Mod in ten minutes. Before you work anything out \u2014 is that possible?",
         "options": [
           "Yes, uphill is slow but 6 km is a short distance",
           "No, that implies a speed no one walks",
@@ -45,7 +48,7 @@
         ],
         "correctIndex": 1
       },
-      "explainAfter": "Average speed is total distance over total time, and it does not care how the walk felt. 6 km in 10 minutes is 36 km/h. A person tops out near 25 km/h on flat ground for seconds at a time, so it is the timing that is wrong, not the walker. This is why an average is evidence: it can be impossible.",
+      "explainAfter": "Average speed is total distance over total time, and it does not care how the walk felt. Six kilometres in ten minutes is 36 km/h. A person tops out near 25 km/h on flat ground for seconds at a time, so it is the timing that is wrong, not the walker. That is why an average is evidence: it can be impossible.",
       "mechanic": {
         "type": "formula",
         "spec": {
@@ -69,7 +72,7 @@
             "band": {
               "from": "0",
               "to": "walkMaxKmh",
-              "label": "Green is what a person can actually walk. Dalvi's timings land outside it — that is the lie."
+              "label": "Green is what a person can actually walk. Dalvi's timings land outside it \u2014 that is the lie."
             }
           }
         },
@@ -85,24 +88,24 @@
       },
       "dialogue": [
         {
-          "speaker": "Station Master Dalvi",
+          "speaker": "Station Master Girdhari Lal",
           "mood": "neutral",
-          "line": "The guard left at ten past and signed in at twenty past. Six kilometres. It is all written down."
+          "line": "He was at the temple at ten past. The train was hit at twenty past. Six kilometres of ravine road between them."
         },
         {
-          "speaker": "Inspector Rane",
+          "speaker": "Subedar Hari Pawar",
           "mood": "neutral",
-          "line": "Written by whom, Station Master?"
+          "line": "And who wrote down ten past, Station Master?"
         },
         {
-          "speaker": "Station Master Dalvi",
+          "speaker": "Station Master Girdhari Lal",
           "mood": "pleased",
-          "line": "By me. As it has been for nineteen years."
+          "line": "I did. As I have for nineteen years. The register does not lie."
         },
         {
-          "speaker": "Inspector Rane",
+          "speaker": "Subedar Hari Pawar",
           "mood": "worried",
-          "line": "Then set the board to what your own timings imply, and we shall see what nineteen years is worth."
+          "line": "Then set the board to what your own register implies, and we will see what nineteen years is worth."
         }
       ],
       "stage": {
@@ -120,43 +123,51 @@
               "label": "what a person can walk"
             },
             "unit": "km/h",
-            "prompt": "the deduction board"
+            "prompt": "the reckoning board"
           }
         ],
         "readables": {
           "signed-timetable": {
-            "speaker": "Station Master Dalvi",
+            "speaker": "Station Master Girdhari Lal",
             "lines": [
-              "Guard Phadke, departed Ghat 9 — ten past the hour.",
-              "Signed in at Kanhe cabin — twenty past. Six kilometres of ghat path between them.",
-              "Signed, R. Dalvi, Station Master. Nineteen years of them, in this same hand."
+              "Bhairav Singh, seen at Pathargarh temple \u2014 ten past the hour.",
+              "Grain train stopped at Teen Mod \u2014 twenty past. Six kilometres of ravine road between them.",
+              "Signed, G. Lal, Station Master. Nineteen years of them, in this same hand."
             ]
           }
         }
       },
       "beat": {
-        "won": "Dalvi sits down very suddenly. The book stays open on the desk.",
-        "lost": "Dalvi folds his arms. \"Nineteen years, Inspector.\"",
-        "speaker": "Inspector Rane"
-      }
+        "won": "Girdhari sits down very suddenly. The register stays open on the desk.",
+        "lost": "Girdhari folds his arms. \"Nineteen years, Subedar.\"",
+        "speaker": "Subedar Hari Pawar"
+      },
+      "steps": [
+        "Walk to the reckoning board \u2014 WASD or the arrow keys.",
+        "Press E to take hold of the needle.",
+        "Left and right move it. It starts inside the green band, and the answer is not.",
+        "Press E again to put the reading to Girdhari."
+      ]
     },
     {
       "id": "act2",
       "conceptId": "braking-distance",
-      "title": "The Runaway",
-      "goal": "You have a brake and nothing else. Ride her down the grade and stop her inside the siding — short of the water tank.",
-      "verbs": ["drive"],
+      "title": "The Runaway Wagon",
+      "goal": "They cut a grain wagon loose on the falling grade above Pathargarh. You have a brake and nothing else. Ride it down and stop it inside the siding, short of the water tower.",
+      "verbs": [
+        "drive"
+      ],
       "sceneId": "scene-falling-grade",
       "prediction": {
-        "question": "You move the marker 10 m further down the grade. The stopping distance…",
+        "question": "You move the marker 10 m further down the grade. The stopping distance\u2026",
         "options": [
-          "Shrinks — braking starts later so there is less left to lose",
-          "Stays the same — the brakes do not know where they are",
-          "Grows — the train has longer to pick up speed"
+          "Shrinks \u2014 braking starts later so there is less left to lose",
+          "Stays the same \u2014 the brakes do not know where they are",
+          "Grows \u2014 the train has longer to pick up speed"
         ],
         "correctIndex": 1
       },
-      "explainAfter": "Once the brakes bite, the distance to stop depends on how fast you were going and how hard you can brake — not on where you started braking. Moving the marker moves the whole stop; it does not shorten it. That is v² = u² + 2as read backwards: double the speed and you quadruple the distance.",
+      "explainAfter": "Once the brakes bite, the distance to stop depends on how fast you were going and how hard you can brake \u2014 not on where you started braking. Moving the marker moves the whole stop; it does not shorten it. That is v\u00b2 = u\u00b2 + 2as read backwards: double the speed and you quadruple the distance.",
       "mechanic": {
         "type": "formula",
         "spec": {
@@ -215,17 +226,19 @@
       },
       "dialogue": [
         {
-          "speaker": "Inspector Rane",
-          "line": "The siding ends at the water tank. Overrun it and we are both in the gorge."
+          "speaker": "Subedar Hari Pawar",
+          "mood": "neutral",
+          "line": "The siding ends at the water tower. Overrun it and the wagon goes into Teen Mod."
         },
         {
-          "speaker": "Station Master Dalvi",
-          "line": "Brake at the top, Inspector. One always brakes at the top.",
-          "mood": "neutral"
+          "speaker": "Station Master Girdhari Lal",
+          "mood": "neutral",
+          "line": "Brake at the top. Everyone brakes at the top."
         },
         {
-          "speaker": "Inspector Rane",
-          "line": "At the top she is still doing sixteen. Let us find out what sixteen costs."
+          "speaker": "Subedar Hari Pawar",
+          "mood": "worried",
+          "line": "At the top she is still doing sixteen. Let us see what sixteen costs."
         }
       ],
       "stage": {
@@ -235,7 +248,7 @@
             "param": "brake",
             "held": 1,
             "label": "brake",
-            "prompt": "release the brakes and ride her down"
+            "prompt": "let the brakes off and ride her down"
           }
         ],
         "playback": {
@@ -262,20 +275,27 @@
         }
       },
       "beat": {
-        "won": "She comes to rest with the tank still dry. Dalvi says nothing at all.",
-        "lost": "Water everywhere and the siding points bent. Rane does not look at you.",
-        "speaker": "Inspector Rane"
-      }
+        "won": "She comes to rest with the tower still dry. Girdhari says nothing at all.",
+        "lost": "Water everywhere and the siding points bent. Pawar does not look at you.",
+        "speaker": "Subedar Hari Pawar"
+      },
+      "steps": [
+        "Press F to let the brakes off and ride her down.",
+        "Hold SPACE to brake. When you let go is the whole act.",
+        "F runs it again and keeps your old attempts beside the line; R clears them."
+      ]
     },
     {
       "id": "act3",
       "conceptId": "projectile-motion",
-      "title": "The Zipline",
-      "goal": "The bandit is on the far ledge and walking. Put the mail across before he reaches it.",
-      "verbs": ["aim_launch"],
+      "title": "Across Teen Mod",
+      "goal": "Bhairav's rider is on the far ledge and already walking. Get the grain-office strongbox across the ravine to Pawar\u2019s men before he reaches it.",
+      "verbs": [
+        "aim_launch"
+      ],
       "sceneId": "scene-gorge",
       "prediction": {
-        "question": "You double the forward speed and keep the upward speed the same. The satchel…",
+        "question": "You double the forward speed and keep the upward speed the same. The satchel\u2026",
         "options": [
           "Stays in the air twice as long",
           "Lands twice as far, in the same flight time",
@@ -283,7 +303,7 @@
         ],
         "correctIndex": 1
       },
-      "explainAfter": "Horizontal and vertical motion do not talk to each other. Gravity only ever works on the vertical, so the time in the air is set by the upward speed and the drop — and the forward speed just decides how much ground that time buys you. Height buys seconds; speed spends them.",
+      "explainAfter": "Horizontal and vertical motion do not talk to each other. Gravity only ever works on the vertical, so the time in the air is set by the upward speed and the drop \u2014 and the forward speed just decides how much ground that time buys you. Height buys seconds; speed spends them.",
       "mechanic": {
         "type": "formula",
         "spec": {
@@ -356,17 +376,19 @@
       },
       "dialogue": [
         {
-          "speaker": "Inspector Rane",
-          "line": "The ledge is twenty-six metres out and eleven below. He is on it already, and walking."
+          "speaker": "Subedar Hari Pawar",
+          "mood": "neutral",
+          "line": "My men are on the far ledge. The rider gets there in under three seconds."
         },
         {
-          "speaker": "Station Master Dalvi",
-          "line": "Aim higher, Inspector. Height carries.",
-          "mood": "neutral"
+          "speaker": "Station Master Girdhari Lal",
+          "mood": "neutral",
+          "line": "Aim higher, Subedar. Height carries."
         },
         {
-          "speaker": "Inspector Rane",
-          "line": "Then he will watch it come down at his leisure."
+          "speaker": "Subedar Hari Pawar",
+          "mood": "worried",
+          "line": "Height buys hang time, Station Master. It does not buy distance."
         }
       ],
       "stage": {
@@ -380,7 +402,7 @@
             "paramX": "launchVx",
             "paramY": "launchVy",
             "maxDrag": 170,
-            "prompt": "the satchel launcher"
+            "prompt": "the rope launcher"
           }
         ],
         "playback": {
@@ -404,7 +426,7 @@
           "seconds": 2.2,
           "rival": {
             "along": "banditFrom - (banditFrom - ledgeNear) * t / banditEta",
-            "label": "the bandit"
+            "label": "Bhairav's rider"
           }
         },
         "readout": {
@@ -414,12 +436,18 @@
         }
       },
       "beat": {
-        "won": "The satchel hits the ledge a clear stride ahead of him. He turns and runs.",
-        "lost": "He picks it up without breaking stride and is gone into the trees.",
-        "speaker": "Inspector Rane"
-      }
+        "won": "The box hits the ledge a clear stride ahead of him. He turns and runs.",
+        "lost": "He picks it up without breaking stride and is gone into the rocks.",
+        "speaker": "Subedar Hari Pawar"
+      },
+      "steps": [
+        "Walk to the rope launcher.",
+        "Press E to take aim.",
+        "Drag away from it and let go. Further is harder, higher is steeper.",
+        "R to take the shot again."
+      ]
     }
   ],
-  "villain": "Station Master R. Dalvi",
-  "twist": "There was no bandit on the ghat that night until Dalvi needed one. He wrote the timings himself, signed them himself, and read them back to you himself — nineteen years of a hand that nobody had ever once checked."
+  "villain": "Station Master Girdhari Lal",
+  "twist": "There were no dacoits on the ravine road that night until Girdhari needed some. He writes the timings, he signs them, and he reads them back to you \u2014 nineteen years of a hand nobody has ever once checked. Bhairav only ever had to be where the register said he was."
 }

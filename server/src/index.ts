@@ -4,14 +4,17 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import express from 'express';
 import type { Request, Response } from 'express';
-import type { NpcTurn, RagRunRequest, TeachingMove } from '@chapter-quest/shared';
+import type { RagParams, RagRunRequest } from '@chapter-quest/shared';
 import { MODELS, getUsage, getUsageByModel } from './gemini.js';
 import { loadEvents, loadRagTable, loadScene, loadWorld, pickRagKey } from './mocks.js';
 import { mocksDir, webDist } from './paths.js';
 import { artFile } from './pipeline/art.js';
 import { extractFromString } from './extract.js';
 import { getJob, startDesign, watch } from './jobs.js';
-import { readFile } from 'node:fs/promises';
+import { adapt, adaptContext, readAdaptRequest } from './adapt.js';
+import { chapterCorpus, runRag } from './rag.js';
+import { listBuilt, loadBuilt, sourceOf } from './library.js';
+import { askGuide, guideContext, readGuideRequest } from './guide.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 8787);
@@ -59,7 +62,7 @@ app.post('/api/worlds', async (req: Request, res: Response) => {
     const raw = String(text ?? '');
     console.log(`[worlds] create: ${filename ?? 'inline text'}, ${raw.length} chars`);
 
-    const demo = /^demo:(rag|kinematics)\b/i.exec(raw.trim());
+    const demo = /^demo:(rag|kinematics|machine)\b/i.exec(raw.trim());
     if (demo) {
       const world = await loadWorld(demo[1]!.toLowerCase());
       res.status(202).json({ id: world.id });
@@ -85,13 +88,26 @@ app.post('/api/worlds', async (req: Request, res: Response) => {
  */
 app.get('/api/art/:hash/:file', (req, res) => {
   const { hash, file } = req.params;
-  if (!/^[0-9a-f]{1,32}$/.test(hash) || !/^[a-z0-9-]{1,64}\.png$/.test(file)) {
+  if (!/^[0-9a-f]{1,32}$/.test(hash) || !/^[a-z0-9-]{1,64}\.(png|jpe?g|webp)$/.test(file)) {
     res.status(400).json({ error: 'bad asset path' });
     return;
   }
   res.sendFile(artFile(hash, file), (err) => {
     if (err) res.status(404).json({ error: 'not painted' });
   });
+});
+
+/**
+ * Worlds already built on this machine. The client puts them under the demo
+ * buttons so a chapter you paid minutes for is one click away, instead of a
+ * build you have to run again because the server restarted.
+ */
+app.get('/api/worlds', async (_req, res) => {
+  try {
+    res.json({ worlds: await listBuilt() });
+  } catch (err) {
+    fail(res, err, 500);
+  }
 });
 
 app.get('/api/worlds/:id', async (req, res) => {
@@ -108,6 +124,20 @@ app.get('/api/worlds/:id', async (req, res) => {
     }
     return;
   }
+  // Not in memory: either a demo fixture, or a world this machine built before
+  // the last restart, which the stage cache can reassemble for nothing.
+  try {
+    const built = await loadBuilt(req.params.id);
+    if (built) {
+      res.json(built.world);
+      return;
+    }
+  } catch (err) {
+    // Built, but not one act of it can be finished. Say that, rather than
+    // serve a world whose first gate never opens.
+    fail(res, err, 422);
+    return;
+  }
   try {
     res.json(await loadWorld(req.params.id));
   } catch (err) {
@@ -119,6 +149,12 @@ app.get('/api/worlds/:id/scenes/:sceneId', async (req, res) => {
   const scene = getJob(req.params.id)?.scenes?.get(req.params.sceneId);
   if (scene) {
     res.json(scene);
+    return;
+  }
+  const built = await loadBuilt(req.params.id).catch(() => null);
+  const rebuilt = built?.scenes.get(req.params.sceneId);
+  if (rebuilt) {
+    res.json(rebuilt);
     return;
   }
   try {
@@ -199,35 +235,126 @@ app.get('/api/worlds/:id/events', async (req, res) => {
   }
 });
 
-/** STUB: canned runs from mocks/rag.json; no retrieval happens yet. */
+/**
+ * One trip to the Oracle. For an act on the live corpus this is the real
+ * pipeline — Gemini embeddings, retrieval, a Gemini answer, a judge — see
+ * rag.ts. The question comes from the act, never from the request. If the
+ * pipeline cannot run, the canned table answers instead and says so
+ * (`live: false`), rather than the panel going dead mid-demo.
+ */
+const CHUNK_SIZES = [40, 120, 250, 500] as const;
+const OVERLAPS = [0, 15, 30] as const;
+function readRagParams(raw: unknown): RagParams | null {
+  const p = (raw ?? {}) as Record<string, unknown>;
+  const chunkSize = CHUNK_SIZES.find((n) => n === p.chunkSize);
+  const overlap = OVERLAPS.find((n) => n === p.overlap);
+  const k = Number(p.k);
+  if (!chunkSize || overlap === undefined || !Number.isInteger(k) || k < 1 || k > 8) return null;
+  return {
+    chunkSize,
+    overlap,
+    k,
+    rerank: p.rerank === true,
+    ...(p.rule === 'grounded' ? { rule: 'grounded' } : {}),
+  };
+}
+
 app.post('/api/rag/run', async (req: Request, res: Response) => {
+  const body = req.body as Partial<RagRunRequest>;
+  const params = readRagParams(body.params);
+  if (!params) return fail(res, new Error('bad retrieval settings'), 400);
+  const context =
+    typeof body.worldId === 'string' && typeof body.actId === 'string'
+      ? await guideContext({
+          worldId: body.worldId,
+          actId: body.actId,
+          characterId: '',
+          playerSays: '-',
+          history: [],
+          solved: false,
+        }).catch(() => null)
+      : null;
+  const mechanic = context?.act.mechanic;
+  // Played over the chapter the world was built from. There is no canned
+  // table for a chapter nobody has seen, so a failure here is reported, not
+  // papered over.
+  if (mechanic?.type === 'ai-system' && mechanic.corpus === 'chapter') {
+    try {
+      const text = await sourceOf(String(body.worldId));
+      if (!text)
+        return fail(
+          res,
+          new Error('the chapter this world was built from is not on this server'),
+          404,
+        );
+      res.json(
+        await runRag(
+          mechanic.question,
+          params,
+          mechanic.ragAct,
+          undefined,
+          chapterCorpus(text, mechanic),
+        ),
+      );
+    } catch (err) {
+      fail(res, err);
+    }
+    return;
+  }
+  if (mechanic?.type === 'ai-system' && mechanic.corpus === 'oracle') {
+    try {
+      res.json(await runRag(mechanic.question, params, mechanic.ragAct));
+      return;
+    } catch (err) {
+      console.warn(
+        '[rag] live run failed, answering from the table:',
+        err instanceof Error ? err.message.slice(0, 160) : err,
+      );
+    }
+  }
   try {
-    const body = req.body as RagRunRequest;
     const table = await loadRagTable();
-    const key = pickRagKey(table, body.params);
+    const key = pickRagKey(table, params);
     const hit = table[key];
     if (!hit) return fail(res, new Error(`no fixture for ${key}`), 404);
-    res.json(hit);
+    res.json({ ...hit, fixtureKey: key, live: false });
   } catch (err) {
     fail(res, err);
   }
 });
 
-/** STUB: one canned NPC turn. */
-app.post('/api/npc/turn', async (_req, res) => {
+/**
+ * Ask the guide a question. Grounded in the chapter the world was built from,
+ * barred from giving away a dial's winning value, and honest when no model is
+ * answering — see guide.ts.
+ */
+app.post('/api/npc/turn', async (req, res) => {
+  const question = readGuideRequest(req.body);
+  if (!question) {
+    res.status(400).json({ error: 'A question needs worldId, actId, characterId and playerSays.' });
+    return;
+  }
   try {
-    res.json(JSON.parse(await readFile(join(mocksDir, 'npc.json'), 'utf8')) as NpcTurn);
+    const context = await guideContext(question);
+    if (!context) return fail(res, new Error('no such world, act or guide'), 404);
+    res.json(await askGuide(context, question));
   } catch (err) {
     fail(res, err);
   }
 });
 
-/** STUB: one canned teaching move. */
-app.post('/api/adapt', async (_req, res) => {
+/**
+ * A failed attempt, read for the misconception behind it. The attempt is
+ * re-judged from the act's own data; the model only chooses among the
+ * curriculum's misconceptions and writes the lines. See adapt.ts.
+ */
+app.post('/api/adapt', async (req, res) => {
+  const request = readAdaptRequest(req.body);
+  if (!request) return fail(res, new Error('not an attempt'), 400);
   try {
-    res.json(
-      JSON.parse(await readFile(join(mocksDir, 'teaching-move.json'), 'utf8')) as TeachingMove,
-    );
+    const context = await adaptContext(request);
+    if (!context) return fail(res, new Error('no such world or act'), 404);
+    res.json(await adapt(context, request));
   } catch (err) {
     fail(res, err);
   }

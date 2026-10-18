@@ -18,6 +18,7 @@ import { MODELS, generateJson } from '../gemini.js';
 import type { ImageRef } from '../gemini.js';
 import { ACT_SCHEMA, CURRICULUM_SCHEMA, JUDGE_SCHEMA, OUTLINE_SCHEMA } from '../schemas.js';
 import type { JudgeVerdict } from '../schemas.js';
+import type { FilmRegister } from '../registers.js';
 import {
   actPrompt,
   curriculumPrompt,
@@ -111,13 +112,17 @@ export const curriculumAgent: Agent<CurriculumInput, Curriculum> = {
 export interface WritersRoomInput {
   curriculum: Curriculum;
   draft: 'A' | 'B';
+  /** The genre this draft is written in. The other draft gets a different one. */
+  register: FilmRegister;
 }
 
 export const writersRoomAgent: Agent<WritersRoomInput, Outline> = {
   name: "Writers' room",
-  async run({ curriculum, draft }, emit) {
-    emit(event(this.name, 'progress', `Writing draft ${draft}…`, MODELS.design));
-    const { system, prompt } = writersRoomPrompt(curriculum, draft);
+  async run({ curriculum, draft, register }, emit) {
+    emit(
+      event(this.name, 'progress', `Draft ${draft}: writing it as ${register.name}…`, MODELS.design),
+    );
+    const { system, prompt } = writersRoomPrompt(curriculum, draft, register);
     const outline = await generateJson<Outline>(prompt, OUTLINE_SCHEMA, {
       role: 'design',
       temperature: 0.85,
@@ -128,7 +133,7 @@ export const writersRoomAgent: Agent<WritersRoomInput, Outline> = {
       event(
         this.name,
         'progress',
-        `Draft ${draft}: "${outline.title}" — villain ${outline.villain}, ${outline.acts.length} acts.`,
+        `Draft ${draft} (${register.name}): "${outline.title}" — villain ${outline.villain}, ${outline.acts.length} acts.`,
         MODELS.design,
       ),
     );
@@ -169,6 +174,8 @@ export interface ActInput {
   outline: Outline;
   concept: Concept;
   act: OutlineAct;
+  /** The notes, which every citation in the act is copied from. */
+  chapterText?: string;
   /** Set on a repair pass. */
   errors?: ValidationError[];
   previous?: ActSpec;
@@ -176,7 +183,7 @@ export interface ActInput {
 
 export const actWriterAgent: Agent<ActInput, ActSpec> = {
   name: 'Act writer',
-  async run({ outline, concept, act, errors, previous }, emit) {
+  async run({ outline, concept, act, errors, previous, chapterText = '' }, emit) {
     const repairing = Boolean(errors?.length);
     emit(
       event(
@@ -191,8 +198,8 @@ export const actWriterAgent: Agent<ActInput, ActSpec> = {
 
     const { system, prompt } =
       repairing && previous
-        ? repairPrompt(outline, concept, act, previous, errors ?? [])
-        : actPrompt(outline, concept, act);
+        ? repairPrompt(outline, concept, act, previous, errors ?? [], chapterText)
+        : actPrompt(outline, concept, act, chapterText);
 
     const wire = await generateJson<WireAct>(prompt, ACT_SCHEMA, {
       role: 'design',
