@@ -33,6 +33,11 @@ COPY server/fixtures server/fixtures
 # so the deployed app opens on the curated demo worlds rather than an empty
 # library. Anything built on Cloud Run lands beside them, until the next deploy.
 COPY server/.cache server/.cache
+# The library lists newest first by file time, and the shipped worlds arrive
+# with times hours ahead of the server clock, so a world built on Cloud Run
+# sorted below all of them and looked unsaved. Push every shipped file back a
+# week, keeping their order among themselves.
+RUN find server/.cache -type f -exec sh -c 'for f; do touch -m -d "@$(( $(stat -c %Y "$f") - 604800 ))" "$f"; done' _ {} +
 
 # Cloud Run sets PORT; the server reads it.
 ENV PORT=8080

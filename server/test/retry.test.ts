@@ -24,11 +24,11 @@ test('a capacity spike and a spent quota are not the same failure', () => {
 });
 
 test('an overloaded model is waited out; a spent quota is handed over', () => {
-  const total = (kind: 'overload' | 'quota') => {
+  const total = (kind: 'overload' | 'quota', provider = 'google') => {
     let ms = 0;
     let tries = 0;
     for (let attempt = 0; attempt < 20; attempt++) {
-      const plan = retryPlan(kind, attempt);
+      const plan = retryPlan(kind, attempt, provider);
       if (!plan.retry) break;
       ms += plan.waitMs;
       tries++;
@@ -48,4 +48,12 @@ test('an overloaded model is waited out; a spent quota is handed over', () => {
   assert.ok(quota.ms < 2_000, 'waiting on quota just delays the fallback model');
 
   assert.equal(retryPlan('fatal', 0).retry, false);
+
+  // Regression: on Vertex a 429 is a per-minute throttle with no daily quota
+  // behind it. One 800ms retry left a live build with twelve placeholder
+  // paintings, because images have no fallback model to hand over to.
+  const vertex = total('quota', 'vertex');
+  assert.ok(vertex.tries >= 4, `vertex throttle gives up after ${vertex.tries} tries`);
+  assert.ok(vertex.ms >= 30_000, `only ${vertex.ms}ms of patience for a per-minute limit`);
+  assert.ok(vertex.ms <= 60_000, 'a build should not stall for minutes on one call');
 });

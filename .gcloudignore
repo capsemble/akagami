@@ -10,10 +10,13 @@
 .git/
 .github/
 
-# Secrets never leave this machine; Cloud Run reads the key from Secret Manager.
+# Secrets never leave this machine. The root .env holds the keys; the web
+# app's .env.production holds only VITE_API=live and has to ship — without it
+# the production build falls back to mock mode and never reads a chapter.
 .env
 .env.*
 !.env.example
+!web/.env.production
 
 node_modules/
 **/node_modules/

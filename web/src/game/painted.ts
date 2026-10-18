@@ -244,7 +244,13 @@ function keyed(scene: Phaser.Scene, key: string, working: number): Keyed | null 
  * Idempotent: the cut texture is made once per Phaser game and handed back on
  * every later call, so an act that re-enters a room pays nothing.
  */
-export function cutout(scene: Phaser.Scene, key: string, working = 512): string | null {
+export function cutout(
+  scene: Phaser.Scene,
+  key: string,
+  working = 512,
+  /** A person: keep one figure, even if the model painted a turnaround. */
+  single = false,
+): string | null {
   const cut = `${key}:cut`;
   if (scene.textures.exists(cut)) return cut;
   const keyedImage = keyed(scene, key, working);
@@ -253,12 +259,46 @@ export function cutout(scene: Phaser.Scene, key: string, working = 512): string 
   const data = frame.data;
 
   // --- 5. crop to the subject ---------------------------------------------
+  // Asked for one standing figure, the image model sometimes paints a
+  // front-and-back turnaround instead, and the room then held two of the same
+  // person. Split the ink into columns at wide gaps (a hand held clear of the
+  // body is a narrow one) and keep the heaviest: the fullest view.
+  let fromX = 0;
+  let toX = w - 1;
+  if (single) {
+    const colInk = new Array<number>(w).fill(0);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) if (data[(y * w + x) * 4 + 3]! > 0) colInk[x]!++;
+    const wide = Math.max(6, Math.round(w * 0.04));
+    const runs: { a: number; b: number; ink: number }[] = [];
+    let gap = wide;
+    for (let x = 0; x < w; x++) {
+      if (colInk[x]! < 2) {
+        gap++;
+        continue;
+      }
+      const last = runs[runs.length - 1];
+      if (last && gap < wide) {
+        last.b = x;
+        last.ink += colInk[x]!;
+      } else runs.push({ a: x, b: x, ink: colInk[x]! });
+      gap = 0;
+    }
+    const heaviest = runs.reduce<(typeof runs)[number] | null>(
+      (best, r) => (!best || r.ink > best.ink ? r : best),
+      null,
+    );
+    if (heaviest && runs.length > 1) {
+      fromX = heaviest.a;
+      toX = heaviest.b;
+    }
+  }
   let minX = w;
   let minY = h;
   let maxX = -1;
   let maxY = -1;
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
+    for (let x = fromX; x <= toX; x++) {
       if (data[(y * w + x) * 4 + 3] === 0) continue;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
@@ -321,13 +361,22 @@ function bands(counts: number[], want: number): [number, number][] | null {
   const lengths = runs.map(([a, b]) => b - a + 1).sort((a, b) => a - b);
   const median = lengths[Math.floor(lengths.length / 2)] ?? 0;
   const kept = runs.filter(([a, b]) => b - a + 1 >= median * 0.15);
+  // Too many bands is usually one figure split by a narrow gap (a satchel off
+  // the hip), so the closest pair is joined — but only while that gap really
+  // is narrower than the rest. A model that painted 5 evenly spaced columns
+  // instead of 4 has no narrow gap, and joining two whole figures into one
+  // frame put two players on screen, flickering as the stride cycled.
+  const gapAt = (i: number) => kept[i + 1]![0] - kept[i]![1];
   while (kept.length > want) {
     let closest = 0;
-    for (let i = 1; i < kept.length - 1; i++) {
-      if (kept[i + 1]![0] - kept[i]![1] < kept[closest + 1]![0] - kept[closest]![1]) closest = i;
-    }
+    for (let i = 1; i < kept.length - 1; i++) if (gapAt(i) < gapAt(closest)) closest = i;
+    const gaps = kept.slice(0, -1).map((_, i) => gapAt(i)).sort((a, b) => a - b);
+    const typical = gaps[Math.floor(gaps.length / 2)]!;
+    if (gapAt(closest) >= typical * 0.5) break;
     kept.splice(closest, 2, [kept[closest]![0], kept[closest + 1]![1]]);
   }
+  // Evenly spaced extras: the grid reads in order, so the first `want` are it.
+  if (kept.length > want) kept.length = want;
   return kept.length === want ? kept : null;
 }
 

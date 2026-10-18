@@ -2613,7 +2613,9 @@ export class WorldScene extends Phaser.Scene {
       const at = this.toScreen(spot.x, spot.y);
       const depth = isoDepth(spot.x, spot.y);
 
-      const texture = isPaintedUrl(member.sprite) ? cutout(this, castKey(member.id)) : null;
+      const texture = isPaintedUrl(member.sprite)
+        ? cutout(this, castKey(member.id), 512, true)
+        : null;
       if (texture) {
         const image = this.add.image(at.x, at.y, texture).setOrigin(0.5, 1).setDepth(depth);
         // Painted to the same height the drawn cast stand at. One room is one

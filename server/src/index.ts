@@ -9,7 +9,7 @@ import { MODELS, getUsage, getUsageByModel } from './gemini.js';
 import { loadEvents, loadRagTable, loadScene, loadWorld, pickRagKey } from './mocks.js';
 import { mocksDir, webDist } from './paths.js';
 import { artFile } from './pipeline/art.js';
-import { extractFromString } from './extract.js';
+import { extractFromString, extractPdfBytes } from './extract.js';
 import { getJob, startDesign, watch } from './jobs.js';
 import { adapt, adaptContext, readAdaptRequest } from './adapt.js';
 import { chapterCorpus, runRag } from './rag.js';
@@ -58,9 +58,13 @@ app.get('/api/demo/:name', async (req, res) => {
  */
 app.post('/api/worlds', async (req: Request, res: Response) => {
   try {
-    const { text, filename } = req.body ?? {};
-    const raw = String(text ?? '');
-    console.log(`[worlds] create: ${filename ?? 'inline text'}, ${raw.length} chars`);
+    const { text, filename, pdf } = req.body ?? {};
+    // A PDF comes up as base64 and is read here: the browser's file.text() on
+    // a PDF is the raw binary, which used to be designed as if it were notes.
+    const fromPdf =
+      typeof pdf === 'string' ? await extractPdfBytes(Buffer.from(pdf, 'base64'), String(filename ?? 'upload.pdf')) : null;
+    const raw = fromPdf ? fromPdf.text : String(text ?? '');
+    console.log(`[worlds] create: ${filename ?? 'inline text'}, ${raw.length} chars${fromPdf ? ` from ${fromPdf.pages.length} PDF pages` : ''}`);
 
     const demo = /^demo:(rag|kinematics|machine)\b/i.exec(raw.trim());
     if (demo) {
@@ -69,11 +73,15 @@ app.post('/api/worlds', async (req: Request, res: Response) => {
       return;
     }
     if (raw.trim().length < 200) {
-      res.status(400).json({ error: 'That is too short to be a chapter.' });
+      res.status(400).json({
+        error: fromPdf
+          ? 'That PDF has almost no selectable text (a scan?). Paste the notes as text instead.'
+          : 'That is too short to be a chapter.',
+      });
       return;
     }
 
-    const chapter = extractFromString(raw, filename ?? 'inline text');
+    const chapter = fromPdf ?? extractFromString(raw, filename ?? 'inline text');
     const id = startDesign(chapter);
     res.status(202).json({ id });
   } catch (err) {
