@@ -174,6 +174,8 @@ export interface ActInput {
   outline: Outline;
   concept: Concept;
   act: OutlineAct;
+  /** The notes, which every citation in the act is copied from. */
+  chapterText?: string;
   /** Set on a repair pass. */
   errors?: ValidationError[];
   previous?: ActSpec;
@@ -181,7 +183,7 @@ export interface ActInput {
 
 export const actWriterAgent: Agent<ActInput, ActSpec> = {
   name: 'Act writer',
-  async run({ outline, concept, act, errors, previous }, emit) {
+  async run({ outline, concept, act, errors, previous, chapterText = '' }, emit) {
     const repairing = Boolean(errors?.length);
     emit(
       event(
@@ -196,8 +198,8 @@ export const actWriterAgent: Agent<ActInput, ActSpec> = {
 
     const { system, prompt } =
       repairing && previous
-        ? repairPrompt(outline, concept, act, previous, errors ?? [])
-        : actPrompt(outline, concept, act);
+        ? repairPrompt(outline, concept, act, previous, errors ?? [], chapterText)
+        : actPrompt(outline, concept, act, chapterText);
 
     const wire = await generateJson<WireAct>(prompt, ACT_SCHEMA, {
       role: 'design',

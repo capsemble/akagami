@@ -3,14 +3,14 @@
     "ts": 0,
     "agent": "Orchestrator",
     "kind": "start",
-    "message": "Chapter received: Concepts of Physics — Ch. 3, \"Rest and Motion: Kinematics\" — 42 pages, 11 worked examples.",
+    "message": "Chapter received: Concepts of Physics \u2014 Ch. 3, \"Rest and Motion: Kinematics\" \u2014 42 pages, 11 worked examples.",
     "model": "gemini-3.8-flash"
   },
   {
     "ts": 900,
     "agent": "Curriculum agent",
     "kind": "progress",
-    "message": "Curriculum agent (Gemini 4 Argon): reading chapter. Splitting into teachable units…",
+    "message": "Curriculum agent (Gemini 4 Argon): reading chapter. Splitting into teachable units\u2026",
     "model": "gemini-4-argon"
   },
   {
@@ -31,21 +31,21 @@
     "ts": 5200,
     "agent": "Story agent",
     "kind": "done",
-    "message": "Story agent (Gemini 4 Argon): world is \"The Ghost of Ghat 9\". A monsoon hill railway, a bandit with an alibi, and a timetable signed by the man reading it to you.",
+    "message": "Story agent (Gemini 4 Argon): world is \"The Ravine at Pathargarh\". A dust-and-ochre ravine western, a dacoit with an alibi, and a timetable signed by the man reading it to you.",
     "model": "gemini-4-argon"
   },
   {
     "ts": 6100,
     "agent": "Mechanic agent",
     "kind": "progress",
-    "message": "Binding concepts to verbs: average speed → deduction board, braking distance → the brake lever, projectile motion → aim and launch.",
+    "message": "Binding concepts to verbs: average speed \u2192 deduction board, braking distance \u2192 the wagon brake, projectile motion \u2192 aim and launch.",
     "model": "gemini-4-argon"
   },
   {
     "ts": 7800,
     "agent": "Validator",
     "kind": "rejected",
-    "message": "Rejected Act II (guessable, 64%): the siding swallowed almost every brake you could hold, so any late grab worked. Repairing…",
+    "message": "Rejected Act II (guessable, 64%): the siding swallowed almost every brake you could hold, so any late grab worked. Repairing\u2026",
     "model": "gemini-4-argon"
   },
   {
@@ -66,28 +66,28 @@
     "ts": 11600,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): style plate locked — isometric 1950s hill railway, wet slate and teak, lantern light.",
+    "message": "Art director (Nano Banana): style plate locked \u2014 isometric ravine country, bleached khaki and ochre stone, four-o-clock light.",
     "model": "gemini-nano-banana-2.1"
   },
   {
     "ts": 13400,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): cast painted against the plate — Rane and Dalvi, portrait and sprite each, so they look related.",
+    "message": "Art director (Nano Banana): cast painted against the plate \u2014 Pawar and Girdhari, portrait and sprite each, so they look related.",
     "model": "gemini-nano-banana-2.1"
   },
   {
     "ts": 15100,
     "agent": "Art director",
     "kind": "progress",
-    "message": "Art director (Nano Banana): one sprite per interactable, placed on its own collider — art cannot drift from the physics.",
+    "message": "Art director (Nano Banana): one sprite per interactable, placed on its own collider \u2014 art cannot drift from the physics.",
     "model": "gemini-nano-banana-2.1"
   },
   {
     "ts": 16800,
     "agent": "Cast agent",
     "kind": "done",
-    "message": "Cast sheet: Inspector Rane (3 moods), Station Master Dalvi (3 moods). Dalvi personifies the misconception, so he stays likeable.",
+    "message": "Cast sheet: Subedar Hari Pawar (3 moods), Station Master Girdhari Lal (3 moods). Girdhari personifies the misconception, so he stays likeable.",
     "model": "gemini-nano-banana-2.1"
   },
   {
@@ -101,14 +101,14 @@
     "ts": 19900,
     "agent": "Mapper",
     "kind": "done",
-    "message": "Scene QA (Gemini Flash): walkability passed — spawn reaches the deduction board, the brake lever and the launcher.",
+    "message": "Scene QA (Gemini Flash): walkability passed \u2014 spawn reaches the reckoning board, the wagon brake and the launcher.",
     "model": "gemini-3.5-flash-lite"
   },
   {
     "ts": 21000,
     "agent": "Orchestrator",
     "kind": "done",
-    "message": "World ready. 3 acts, 3 isometric scenes, 2 characters. Step into the signal box.",
+    "message": "World ready. 3 acts, 3 isometric scenes, 2 characters. Step into the station cabin.",
     "model": "gemini-3.8-flash"
   }
 ]

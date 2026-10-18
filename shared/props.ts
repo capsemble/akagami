@@ -36,8 +36,13 @@ export type PropKind =
   | 'door'
   | 'rock';
 
-/** What a prop can be when nothing in its name says what it is. */
-const GENERIC: PropKind[] = ['crate', 'barrel', 'document', 'rock', 'pillar', 'shelf'];
+/**
+ * What a prop can be when nothing in its name says what it is. Neutral things
+ * only: a bookcase or a writing desk is a specific claim, and an iron collar on
+ * a cricket ground drawn as a bookcase is the room telling a lie. Six entries
+ * still, so every other unknown prop keeps the shape it had.
+ */
+const GENERIC: PropKind[] = ['crate', 'barrel', 'crate', 'rock', 'pillar', 'barrel'];
 
 /**
  * Words → silhouette. Checked in order, so the specific entries come first: a
@@ -48,7 +53,10 @@ const KINDS: [PropKind, string[]][] = [
   ['lever', ['lever', 'switch', 'throttle', 'handle', 'brake', 'crank', 'regulator']],
   ['board', ['board', 'chalk', 'notice', 'pinboard', 'map', 'chart', 'poster', 'plan', 'wall of']],
   ['tank', ['tank', 'boiler', 'cistern', 'vat', 'reservoir', 'tower', 'silo', 'kettle']],
-  ['barrel', ['barrel', 'drum', 'cask', 'keg', 'canister']],
+  [
+    'barrel',
+    ['barrel', 'drum', 'cask', 'keg', 'canister', 'roller', 'collar', 'sleeve', 'counterweight'],
+  ],
   ['launcher', ['launcher', 'catapult', 'cannon', 'mortar', 'sling', 'ballista', 'winch']],
   ['ledge', ['ledge', 'platform', 'cliff', 'landing', 'rooftop', 'slab', 'parapet']],
   // Drawn as a desk with papers on it, so a desk and the thing lying on it are
@@ -162,8 +170,7 @@ function says(words: string[], needles: string[]): boolean {
       ? words.join(' ').includes(needle)
       : words.some(
           (word) =>
-            word === needle ||
-            (word.startsWith(needle) && ENDING.test(word.slice(needle.length))),
+            word === needle || (word.startsWith(needle) && ENDING.test(word.slice(needle.length))),
         ),
   );
 }

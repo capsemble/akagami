@@ -70,6 +70,19 @@ export function RagPanel({ question, params, result, busy, onChange, onRun, onCl
             label={params.rerank ? 'on' : 'off'}
           />
         </Row>
+
+        <Row label="Grounding rule — only what the scrolls say">
+          <Chip
+            active={params.rule === 'grounded'}
+            onClick={() => {
+              const next: RagParams = { ...params };
+              if (params.rule === 'grounded') delete next.rule;
+              else next.rule = 'grounded';
+              onChange(next);
+            }}
+            label={params.rule === 'grounded' ? 'on' : 'off'}
+          />
+        </Row>
       </div>
 
       <button type="button" onClick={onRun} disabled={busy} style={styles.run}>
@@ -82,7 +95,12 @@ export function RagPanel({ question, params, result, busy, onChange, onRun, onCl
             <h3 style={styles.h3}>Answer</h3>
             <p style={styles.answer}>{result.answer}</p>
             <p style={styles.meta}>
-              {result.latencyMs} ms{result.cached ? ' · cached' : ''}
+              {result.live && result.models
+                ? `live · embedded by ${result.models.embed} · answered by ${result.models.answer} · `
+                : result.live === false
+                  ? 'canned answer — the live pipeline could not run · '
+                  : ''}
+              {result.latencyMs} ms{result.cached ? ' · same settings as before, cached' : ''}
             </p>
           </div>
 
@@ -107,6 +125,32 @@ export function RagPanel({ question, params, result, busy, onChange, onRun, onCl
               ))}
             </ul>
           </div>
+
+          {result.lesson ? (
+            <div
+              style={{
+                ...styles.judge,
+                borderColor: result.lesson.passed ? colors.success : colors.fail,
+              }}
+            >
+              <h3
+                style={{
+                  ...styles.h3,
+                  color: result.lesson.passed ? colors.success : colors.fail,
+                }}
+              >
+                {result.lesson.passed ? 'Fixed — the library works' : 'Not fixed yet'}
+              </h3>
+              {result.lesson.checks.map((c) => (
+                <p key={c.label} style={styles.meta}>
+                  <span style={{ color: c.ok ? colors.success : colors.fail }}>
+                    {c.ok ? '✓' : '✗'}
+                  </span>{' '}
+                  {c.label}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
           <div
             style={{

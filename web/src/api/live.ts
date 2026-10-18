@@ -1,5 +1,5 @@
 import type { AgentEvent, RagRunRequest } from '@chapter-quest/shared';
-import type { AdaptRequest, ApiClient, NpcTurnRequest } from './types';
+import type { AdaptRequest, ApiClient, BuiltWorld, NpcTurnRequest } from './types';
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -21,6 +21,17 @@ export const liveApi: ApiClient = {
         ? { text: input }
         : { filename: input.name, text: await input.text() };
     return json('/api/worlds', { method: 'POST', body: JSON.stringify(payload) });
+  },
+
+  async listWorlds() {
+    // null, not []: a title screen that cannot reach the API needs to say so
+    // rather than quietly showing an empty library and a button that fails.
+    try {
+      const { worlds } = await json<{ worlds: BuiltWorld[] }>('/api/worlds');
+      return worlds ?? [];
+    } catch {
+      return null;
+    }
   },
 
   getWorld: (id) => json(`/api/worlds/${id}`),

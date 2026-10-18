@@ -69,7 +69,8 @@
       "y": 620,
       "w": 120,
       "h": 120,
-      "height": 90
+      "height": 90,
+      "label": "Wagon brake"
     },
     {
       "id": "water-tank",
@@ -77,7 +78,8 @@
       "y": 300,
       "w": 200,
       "h": 200,
-      "height": 260
+      "height": 260,
+      "label": "Pathargarh water tower"
     }
   ],
   "exits": [

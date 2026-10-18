@@ -13,27 +13,50 @@ import type {
   WorldPath,
 } from '@chapter-quest/shared';
 import {
+  ISO_X,
   Run,
   compile,
   evaluate,
+  simulate,
   isoDepth,
   isoDiamond,
   isoInputToWorld,
   isoProject,
   isoView,
   propApex,
+  propHeight,
+  propKindFor,
   propLabel,
+  seedOf,
 } from '@chapter-quest/shared';
-import type { CompiledExpr, ExprScope, Interactable, IsoView } from '@chapter-quest/shared';
+import type {
+  CompiledExpr,
+  ExprScope,
+  Interactable,
+  IsoView,
+  PropKind,
+} from '@chapter-quest/shared';
 import { Actor, lookFor } from './actor';
+import { BalanceRig } from './balance';
+import { castKey, cutout, isPaintedUrl, propKey, sliceSheet } from './painted';
+import { PaintedActor } from './painted-actor';
+import { dressKey, placeDressing, preloadDressing } from './dressing';
 import { gameBus } from './bus';
+import type { GameEvents } from './bus';
+import { focus, impact, land, punch, relax } from './camera';
+import type { Pool } from './light';
+import { Motes, addLightPool, addVignette, flicker } from './light';
 import type { Rumble } from './sfx';
 import { sfx } from './sfx';
-import { drawLocomotive, drawTrack } from './track';
-import { drawFootprint, drawFurniture, drawProp, drawWall, isWall } from './props';
+import { Steam, chimneyOffset, drawLocomotive, drawTrack } from './track';
+import { darken, drawFootprint, drawFurniture, drawProp, drawWall, isWall, lighten } from './props';
 
 const PLAYER_SPEED = 260;
 const INTERACT_RADIUS = 110;
+/** How close you have to be before the cast turn and look at you. */
+const NOTICE_RADIUS = 260;
+/** The height the drawn cast stand at, which the painted cast match. */
+const CAST_HEIGHT = 64;
 /** How close to the line you must stand before a marker can go down. */
 const PLANT_RADIUS = 220;
 /** Auto-repeat while an arrow is held: slow at first, then quick. A tap is
@@ -41,6 +64,8 @@ const PLANT_RADIUS = 220;
 const NEEDLE_SLOW = 8;
 const NEEDLE_FAST = 28;
 const NEEDLE_RAMP = 500;
+/** Notches across a lever's range while a run is live: steering, not deduction. */
+const LEVER_NOTCHES = 10;
 /** How many past attempts stay on the track. Enough to see the pattern. */
 const GHOST_LIMIT = 4;
 const DEBUG_COLOR = 0xff00ff;
@@ -48,6 +73,31 @@ const GOLD = 0xd9a441;
 const GREEN = 0x6fbf73;
 const RED = 0xc05746;
 const PARCHMENT = 0xf4ecd8;
+/** A sandstone flag in lamplight, before each one is shaded on its own. */
+const FLAG = 0x4d3825;
+/**
+ * Painted in a studio, standing in a lamplit room. A multiply this gentle is
+ * not a colour change: it takes the daylight off a cut-out so it belongs to
+ * the room it was dropped into.
+ */
+const WARM = 0xfff0de;
+/** Texture key for the player's walk sheet. */
+const PLAYER_SHEET = 'art-player-sheet';
+/** A touch taller than the cast, so the one figure you steer is the one you find first. */
+const PLAYER_HEIGHT = 68;
+/** How see-through scenery gets when it stands in front of someone. */
+const OCCLUDER_ALPHA = 0.32;
+/** How tall the gate's posts stand on screen, in pixels. */
+const GATE_HEIGHT = 96;
+/** Bars across a locked gate. */
+const GATE_BARS = 6;
+/** How close counts as standing at the gate, for its prompt and its beacon. */
+const GATE_NEAR = 180;
+/** How far a painted room is pushed past the frame; see layBackdrop. */
+const PLATE_OVERSCAN = 1.12;
+
+/** So two people in one room do not breathe in lockstep. */
+const seedPhase = (id: string): number => (seedOf(id) % 628) / 100;
 
 export interface WorldSceneInit {
   scene: WorldSceneData;
@@ -68,6 +118,12 @@ export interface WorldSceneInit {
   spec?: SimSpec | null;
   /** The winning span along the playback path, in that path's units. */
   target?: { from: number; to: number; label?: string } | null;
+  /** The cast member the player can walk up to and ask anything. */
+  guide?: string;
+  /** The way out: shut until the act is won. Updates arrive on the bus. */
+  gate?: GameEvents['gate'];
+  /** The player's painted walk sheet. Absent, the player is drawn. */
+  playerSheet?: string;
 }
 
 /** What the player is doing right now. Walking is the only mode that moves. */
@@ -120,9 +176,20 @@ export class WorldScene extends Phaser.Scene {
   private avatar!: Phaser.GameObjects.Sprite;
   /** The player, drawn with limbs that move. Null in a top-down scene, which
    *  still uses the flat sprite. */
-  private walker: Actor | null = null;
+  private walker: Actor | PaintedActor | null = null;
+  /** The player's painted walk sheet, if the world has one. */
+  private playerSheet: string | undefined;
   /** Everyone else in the room, with where they stand. */
-  private extras: { actor: Actor; at: Point; depth: number }[] = [];
+  private extras: {
+    /** Drawn with limbs, and able to turn and look at you. */
+    actor?: Actor;
+    /** Painted: it cannot turn, so it stands and breathes instead. */
+    image?: Phaser.GameObjects.Image;
+    phase?: number;
+    at: Point;
+    spot: Point;
+    depth: number;
+  }[] = [];
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys!: Record<
     'up' | 'down' | 'left' | 'right' | 'interact' | 'run' | 'reset' | 'control' | 'debug',
@@ -131,6 +198,16 @@ export class WorldScene extends Phaser.Scene {
 
   private prompt!: Phaser.GameObjects.Text;
   private readout!: Phaser.GameObjects.Text;
+  /**
+   * What the dial's current setting would actually do.
+   *
+   * Without it a needle act is: pick a number, commit, be told yes or no.
+   * The player never sees the relationship they are supposed to be learning,
+   * only whether they guessed it. Showing the consequence as they turn is the
+   * whole loop — move the tension, watch the drift go to zero, understand why
+   * the cable has to carry the weight exactly.
+   */
+  private consequence!: Phaser.GameObjects.Text;
   private debugLayer!: Phaser.GameObjects.Graphics;
   /** The path and its target band. Redrawn only when the act changes state. */
   private stageLayer!: Phaser.GameObjects.Graphics;
@@ -157,6 +234,45 @@ export class WorldScene extends Phaser.Scene {
   private planted = false;
   /** Milliseconds an arrow has been held, for the needle's auto-repeat. */
   private needleHeld = 0;
+  /**
+   * Which dial on the board the player is holding.
+   *
+   * An act with two params is a trade-off — workers against queue depth, cache
+   * hit rate against origin load — and the board needs both. Turning one and
+   * leaving the other frozen is not a simplification, it is an act nobody can
+   * win.
+   */
+  private activeNeedle = 0;
+  /** Set-dressing uprights, with the screen box each covers. They never move. */
+  private scenery: { image: Phaser.GameObjects.Image; box: Phaser.Geom.Rectangle }[] = [];
+  /** Uprights standing in front of a person or a prop, which stay see-through. */
+  private veiled = new Set<Phaser.GameObjects.Image>();
+  /** The way out, and whether it lets you through yet. */
+  private gate: GameEvents['gate'] | null = null;
+  private gateRect: Rect | null = null;
+  private gateLayer: Phaser.GameObjects.Graphics | null = null;
+  private gateLabel: Phaser.GameObjects.Text | null = null;
+  /** Solid while locked, so a shut gate is something you walk into. */
+  private gateCollider: Phaser.Physics.Arcade.Collider | null = null;
+  private gateBumped = 0;
+  /** Set the moment the player steps through: the scene is on its way out. */
+  private exiting = false;
+  /** Who answers questions in this room, if anyone does. */
+  private guide: string | null = null;
+  /** The gold question mark over the guide's head, and where it rests. */
+  private guideMark: { text: Phaser.GameObjects.Text; home: number } | null = null;
+  /** True while the player is close enough to the guide to ask. */
+  private nearGuide = false;
+  /** Values as they stood when a live run began, put back when it ends. */
+  private preRun: Record<string, number> | null = null;
+  /** Which live lever ← → works, when a board has more than one. */
+  private activeLever = 0;
+  /** How long a lever key has been held mid-run, for the repeat. */
+  private leverHeld = 0;
+  /** The number the act is judged on, read off the run live so it can be steered by. */
+  private gaugeExpr: CompiledExpr | null = null;
+  /** One text per dial, so a two-dial board is two named instruments. */
+  private dialNames: Phaser.GameObjects.Text[] = [];
   /** The live run, while one is being driven. */
   private run: Run | null = null;
   private alongExpr: CompiledExpr | null = null;
@@ -170,12 +286,58 @@ export class WorldScene extends Phaser.Scene {
   private cameraParked = false;
   /** The run's own noise, open for as long as the run lasts. */
   private rumble: Rumble | null = null;
+  /** Anything in the room that burns, so it can gutter. */
+  private pools: { pool: Pool; seed: number; motes: Motes }[] = [];
+  /** The engine's exhaust, left behind in the world as it goes. */
+  private steam: Steam | null = null;
+  /** Where the actor was last frame, to spawn steam by distance covered. */
+  private actorWas: Point | null = null;
   /** Rings on the floor under the props, redrawn when the one in reach changes. */
   private footprints!: Phaser.GameObjects.Graphics;
+  /** Redrawn under the player every frame; see syncAvatar. */
+  private playerShadow!: Phaser.GameObjects.Graphics;
   /** One name plate per interactable, so a prop never has to be guessed at. */
   private plates: { id: string; text: Phaser.GameObjects.Text; home: number }[] = [];
   /** Which prop the rings and plates are currently lit for. */
   private highlighted: string | null = null;
+  /**
+   * The one prop this act is about, and the marker pointing at it.
+   *
+   * A room generated from a chapter always has more props than bindings — act
+   * three of the coal world has a winch tension dial that is wired to the
+   * mechanic and an honest weighbridge plate that is wired to nothing. They
+   * looked identical: same ring, same plate, same prompt. Walking to the wrong
+   * one and pressing E did nothing at all, which reads as a broken game rather
+   * than as the wrong prop.
+   */
+  private focus: string | null = null;
+  private beacon!: Phaser.GameObjects.Graphics;
+  /** When the player last walked into something, so a held key does not
+   *  machine-gun the knock. */
+  private lastBump = 0;
+  /**
+   * Hold a message on the prompt until this time.
+   *
+   * `update` rewrites the prompt every frame from whatever is in reach, so a
+   * line written in response to a keypress was gone 16ms later — the player
+   * pressed E, something did happen, and the evidence was overwritten before
+   * the next frame could draw it.
+   */
+  private promptUntil = 0;
+  /** The beam and its loads, when the act is a balance. */
+  private rig: BalanceRig | null = null;
+  /** The beam's tilt as last simulated, radians. Level until a run says otherwise. */
+  private rigTilt = 0;
+  private rigVerdict: { won: boolean; note: string } | null = null;
+  /** Finished runs this act. A centre of mass that never moves is shown after the first. */
+  private rigRuns = 0;
+  private rigSettle: Phaser.Tweens.Tween | null = null;
+  /** The shaft a vertical run climbs, drawn over the props. */
+  private shaftLayer: Phaser.GameObjects.Graphics | null = null;
+  /** True while the beam shows a run's tilt; false, it rests where the sim starts it. */
+  private rigLive = false;
+  /** 0 → 1 while a delivered load crosses onto its platform. */
+  private rigDelivered = 0;
 
   constructor() {
     super(WorldScene.KEY);
@@ -188,6 +350,16 @@ export class WorldScene extends Phaser.Scene {
     this.params = init.params ?? [];
     this.target = init.target ?? null;
     this.simSpec = init.spec ?? null;
+    this.guide = init.guide ?? null;
+    this.playerSheet = init.playerSheet;
+    this.gate = init.gate ?? null;
+    this.gateRect = null;
+    this.gateLayer = null;
+    this.gateLabel = null;
+    this.gateCollider = null;
+    this.exiting = false;
+    this.guideMark = null;
+    this.nearGuide = false;
     this.iso =
       init.scene.projection === 'isometric' ? isoView(init.scene.width, init.scene.height) : null;
     this.mode = 'walk';
@@ -202,24 +374,63 @@ export class WorldScene extends Phaser.Scene {
     this.ghostTexts = [];
     this.braked = null;
     this.cameraParked = false;
+    this.lastBump = 0;
+    this.promptUntil = 0;
     this.rumble = null;
+    this.pools = [];
+    this.steam = null;
+    this.actorWas = null;
     this.walker = null;
     this.extras = [];
     this.plates = [];
     this.highlighted = null;
+    this.focus = null;
+    this.rig = null;
+    this.rigTilt = 0;
+    this.rigVerdict = null;
+    this.rigRuns = 0;
+    this.rigSettle = null;
+    this.rigLive = false;
+    this.rigDelivered = 0;
+    this.shaftLayer = null;
   }
 
   preload(): void {
     const view = this.viewSize();
     if (this.sceneData.imageUrl) {
-      this.load.svg(`bg-${this.sceneData.id}`, this.sceneData.imageUrl, {
-        width: view.width,
-        height: view.height,
-      });
+      // The hand-written fixtures point at SVGs, which have to be rasterised
+      // at a size. A painted room is already pixels and is stretched onto the
+      // plane in create().
+      if (/\.svg(\?|$)/i.test(this.sceneData.imageUrl)) {
+        this.load.svg(`bg-${this.sceneData.id}`, this.sceneData.imageUrl, {
+          width: view.width,
+          height: view.height,
+        });
+      } else {
+        this.load.image(`bg-${this.sceneData.id}`, this.sceneData.imageUrl);
+      }
     }
-    // Only the top-down fallback needs a flat sprite; an isometric scene draws
-    // its people with limbs instead, which no painted plate can do.
+    // The player is drawn rather than loaded whatever happens: this is the one
+    // body in the room that walks, and a painted plate cannot.
     this.load.svg('player', '/mock-art/player.svg', { width: 32, height: 48 });
+
+    // Everything the art director managed to paint for this world. It arrives
+    // as a JPEG on a white field and is keyed and cropped in create(), once
+    // the bytes are actually here; see painted.ts.
+    for (const target of this.sceneData.interactables) {
+      if (isPaintedUrl(target.imageUrl)) this.load.image(propKey(target.id), target.imageUrl);
+    }
+    for (const member of this.cast) {
+      if (isPaintedUrl(member.sprite)) this.load.image(castKey(member.id), member.sprite);
+    }
+    if (isPaintedUrl(this.playerSheet)) this.load.image(PLAYER_SHEET, this.playerSheet);
+    // Scenery. Committed PNGs with their own alpha, so unlike the painted
+    // props these go straight into the scene without a keying pass.
+    preloadDressing(this, this.sceneData.dressing);
+    // An asset that will not load costs its own picture and nothing else.
+    this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
+      console.info('[art] unpainted, drawing it instead:', file.key);
+    });
   }
 
   /** Pixel size of the drawn scene, which is not the world size when isometric. */
@@ -239,7 +450,7 @@ export class WorldScene extends Phaser.Scene {
     const view = this.viewSize();
 
     if (this.sceneData.imageUrl) {
-      this.add.image(0, 0, `bg-${this.sceneData.id}`).setOrigin(0, 0).setDepth(0);
+      this.layBackdrop(view);
     } else {
       this.drawGround(width, height);
     }
@@ -254,24 +465,68 @@ export class WorldScene extends Phaser.Scene {
     this.stageLayer = this.add.graphics().setDepth(1);
 
     if (this.iso) {
+      // Dressing before the props and the cast: it is scenery, it collides
+      // with nothing, and placing it first means a prop and a tree that land
+      // on the same screen line are still sorted by `isoDepth` and not by the
+      // order they happened to be added in.
+      placeDressing(this, this.sceneData.dressing, this.iso);
       this.drawVolumes(blocked, interactables);
       this.placeCast();
+      this.findOccluders(interactables);
+
+      const balance = this.stage?.balance;
+      if (balance && this.simSpec) {
+        this.rig = new BalanceRig(this, balance, this.simSpec, this.params, (x, y) =>
+          this.toScreen(x, y),
+        );
+        // A beam is something you walk round, not through. Only if nobody has
+        // to stand where it lies — a collider over the spawn would wall the
+        // player into the beam.
+        const standing = [spawn, ...Object.values(this.sceneData.npcSpots)];
+        const anchor = this.binding('needle')?.at;
+        if (anchor) standing.push(anchor);
+        for (const fp of this.rig.footprints()) {
+          const clear = !standing.some(
+            (p) =>
+              p.x > fp.x - 20 &&
+              p.x < fp.x + fp.w + 20 &&
+              p.y > fp.y - 20 &&
+              p.y < fp.y + fp.h + 20,
+          );
+          if (!clear) continue;
+          const zone = this.add.zone(fp.x + fp.w / 2, fp.y + fp.h / 2, fp.w, fp.h);
+          this.physics.add.existing(zone, true);
+          walls.push(zone);
+        }
+      }
     }
 
     this.ghostLayer = this.add.graphics().setDepth(8500);
     this.ghostLayer2 = this.add.graphics().setDepth(8550);
     this.trailLayer = this.add.graphics().setDepth(8600);
+    this.steam = new Steam(this.add.graphics().setDepth(8650));
 
     this.player = this.physics.add.sprite(spawn.x, spawn.y, 'player');
     this.player.setCollideWorldBounds(true);
     this.player.body.setSize(24, 20).setOffset(4, 28); // feet only, so the head overlaps shelves
     this.physics.add.collider(this.player, walls);
+    this.setUpGate();
 
     if (this.iso) {
       // The body stays on the plane; a separate sprite is drawn at the
       // projected position so the camera and depth sorting work in screen space.
       this.player.setVisible(false);
-      this.walker = new Actor(this, lookFor('player'));
+      // Over the floor, under everything that stands on it. The painted props
+      // and cast each got a contact shadow; without one of its own the player
+      // is the only body in the room that hovers.
+      this.playerShadow = this.add.graphics().setDepth(0.55);
+      // Painted if the world has a walk sheet that cuts cleanly into twelve
+      // frames, drawn if not. Either way it walks the same: the painted one
+      // takes the drawn one's facing and stride rules (painted-actor.ts).
+      const sheet = isPaintedUrl(this.playerSheet) ? sliceSheet(this, PLAYER_SHEET, 3, 4) : null;
+      this.walker = sheet
+        ? new PaintedActor(this, sheet, PLAYER_HEIGHT, WARM)
+        : new Actor(this, lookFor('player'));
       this.syncAvatar();
     } else {
       this.player.setDepth(10);
@@ -299,6 +554,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.prompt = this.screenText(this.scale.height - 44, 18, '#f4ecd8');
     this.readout = this.screenText(this.scale.height - 86, 26, '#d9a441');
+    this.consequence = this.screenText(this.scale.height - 120, 17, '#9fd3b0');
     this.ghostLabel = this.add
       .text(0, 0, '', {
         fontFamily: 'monospace',
@@ -344,11 +600,17 @@ export class WorldScene extends Phaser.Scene {
     const off = [
       gameBus.on('outcome', (payload) => this.playOutcome(payload)),
       gameBus.on('reset', () => this.resetStage()),
+      gameBus.on('gate', (gate) => this.setGate(gate)),
     ];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => off.forEach((remove) => remove()));
     this.events.on(Phaser.Scenes.Events.PAUSE, () => this.showChrome(false));
     this.events.on(Phaser.Scenes.Events.RESUME, () => this.showChrome(true));
     this.events.once(Phaser.Scenes.Events.DESTROY, () => off.forEach((remove) => remove()));
+
+    addVignette(this);
+    // You arrive through a door, so the room comes up out of the dark the way
+    // the last one went down into it.
+    this.cameras.main.fadeIn(420, 11, 8, 6);
 
     gameBus.emit('ready', { sceneId: this.sceneData.id });
   }
@@ -357,13 +619,56 @@ export class WorldScene extends Phaser.Scene {
    *  React panel comes up. */
   private showChrome(visible: boolean): void {
     for (const plate of this.plates) plate.text.setVisible(visible);
+    this.rig?.showLabels(visible);
     if (!visible) {
       this.prompt.setVisible(false);
       this.readout.setVisible(false);
+      this.consequence.setVisible(false);
+      for (const label of this.dialNames) label.setVisible(false);
       this.ghostLabel.setVisible(false);
     } else if (this.mode === 'needle') {
       this.drawNeedle();
     }
+  }
+
+  /**
+   * A painted floor, laid on the plane the mapper measured.
+   *
+   * `isoView` projects a world plane of any size into a box exactly twice as
+   * wide as it is tall, so one aspect ratio serves every room and the plate is
+   * simply stretched onto that box.
+   *
+   * It is deliberately *not* masked to the diamond. The image model paints a
+   * room as a diorama — a slab of ground with its own worn edges, sitting on a
+   * dark surround — and that surround is the look rather than a mistake to cut
+   * away. It gets a little overscan instead, so the painted ground covers the
+   * part of the plane that can actually be walked on and the plate's own dark
+   * border falls outside the frame.
+   *
+   * Nothing about how the room *works* comes from the picture. The colliders,
+   * the props, the exits and the win band are all laid over it from geometry
+   * that was already correct, so a plate that disagrees with its room is a
+   * picture that looks wrong, never a room you cannot play.
+   */
+  private layBackdrop(view: { width: number; height: number }): void {
+    const key = `bg-${this.sceneData.id}`;
+    if (!this.textures.exists(key)) {
+      // It was listed and it did not arrive. Draw the floor instead of leaving
+      // the player standing in a void.
+      this.drawGround(this.sceneData.width, this.sceneData.height);
+      return;
+    }
+
+    this.add
+      .image(view.width / 2, view.height / 2, key)
+      .setOrigin(0.5)
+      .setDisplaySize(view.width * PLATE_OVERSCAN, view.height * PLATE_OVERSCAN)
+      .setDepth(0);
+
+    // Thresholds are geometry, not decoration: they say where you are allowed
+    // to leave, and a painted floor has no idea where the exits are.
+    const g = this.add.graphics().setDepth(0.2);
+    for (const exit of this.sceneData.exits) this.drawThreshold(g, exit);
   }
 
   /**
@@ -388,35 +693,54 @@ export class WorldScene extends Phaser.Scene {
       g.fillPath();
     };
 
-    fill([corner(0, 0), corner(width, 0), corner(width, height), corner(0, height)], 0x241709);
+    // Grout first: the flags are laid over it with a gap, so every joint is
+    // the same dark line without stroking a grid.
+    fill([corner(0, 0), corner(width, 0), corner(width, height), corner(0, height)], 0x1e140b);
 
-    const tile = 200;
+    // Sandstone flags, each its own shade, lit from the top left: the two edges
+    // facing the light catch it, the two facing away fall into shadow. Drawn
+    // once — the floor never changes, so it costs nothing per frame.
+    const tile = 100;
+    const gap = 3;
+    const seed = seedOf(this.sceneData.id);
     for (let x = 0; x < width; x += tile) {
       for (let y = 0; y < height; y += tile) {
-        if (((x / tile + y / tile) | 0) % 2 === 0) continue;
-        const x1 = Math.min(x + tile, width);
-        const y1 = Math.min(y + tile, height);
-        fill([corner(x, y), corner(x1, y), corner(x1, y1), corner(x, y1)], 0x2c1d0f);
+        const h = hash2(x / tile, y / tile, seed);
+        const x0 = x + gap;
+        const y0 = y + gap;
+        const x1 = Math.min(x + tile, width) - gap;
+        const y1 = Math.min(y + tile, height) - gap;
+        if (x1 <= x0 || y1 <= y0) continue;
+        const stone = lighten(FLAG, 0.84 + ((h % 1000) / 1000) * 0.3);
+        const quad = [corner(x0, y0), corner(x1, y0), corner(x1, y1), corner(x0, y1)];
+        fill(quad, stone);
+        g.lineStyle(1.5, lighten(stone, 1.28), 0.55);
+        g.beginPath();
+        g.moveTo(quad[3]!.x, quad[3]!.y);
+        g.lineTo(quad[0]!.x, quad[0]!.y);
+        g.lineTo(quad[1]!.x, quad[1]!.y);
+        g.strokePath();
+        g.lineStyle(1.5, darken(stone, 0.6), 0.6);
+        g.beginPath();
+        g.moveTo(quad[1]!.x, quad[1]!.y);
+        g.lineTo(quad[2]!.x, quad[2]!.y);
+        g.lineTo(quad[3]!.x, quad[3]!.y);
+        g.strokePath();
+        // One flag in nine has cracked. Wear, not noise.
+        if (h % 9 === 0) {
+          const t = ((h >> 4) % 100) / 100;
+          const crack = [
+            corner(x0 + (x1 - x0) * t, y0),
+            corner(x0 + (x1 - x0) * (0.3 + t * 0.4), y0 + (y1 - y0) * 0.45),
+            corner(x0 + (x1 - x0) * (0.55 + t * 0.2), y1),
+          ];
+          g.lineStyle(1, darken(stone, 0.55), 0.7);
+          g.strokePoints(
+            crack.map((p) => new Phaser.Geom.Point(p.x, p.y)),
+            false,
+          );
+        }
       }
-    }
-
-    // Joints over the top of the tiles, so the seams read at any zoom.
-    g.lineStyle(1.5, 0x3a2715, 0.5);
-    for (let x = 0; x <= width; x += tile) {
-      const a = corner(x, 0);
-      const b = corner(x, height);
-      g.beginPath();
-      g.moveTo(a.x, a.y);
-      g.lineTo(b.x, b.y);
-      g.strokePath();
-    }
-    for (let y = 0; y <= height; y += tile) {
-      const a = corner(0, y);
-      const b = corner(width, y);
-      g.beginPath();
-      g.moveTo(a.x, a.y);
-      g.lineTo(b.x, b.y);
-      g.strokePath();
     }
 
     // A skirting inside the walls: the floor meeting something is what tells
@@ -528,6 +852,24 @@ export class WorldScene extends Phaser.Scene {
     return (found as Extract<ParamBinding, { kind: K }> | undefined) ?? null;
   }
 
+  /** Every dial on this board, in the order the mapper bound them. */
+  private needles(): Extract<ParamBinding, { kind: 'needle' }>[] {
+    return (this.stage?.bindings ?? []).filter(
+      (b): b is Extract<ParamBinding, { kind: 'needle' }> => b.kind === 'needle',
+    );
+  }
+
+  /** The dials that stay in hand while the run plays. */
+  private liveNeedles(): Extract<ParamBinding, { kind: 'needle' }>[] {
+    return this.needles().filter((needle) => needle.live);
+  }
+
+  /** The dial currently in hand. */
+  private heldNeedle(): Extract<ParamBinding, { kind: 'needle' }> | null {
+    const all = this.needles();
+    return all[Math.min(this.activeNeedle, all.length - 1)] ?? null;
+  }
+
   private spec(name: string): ParamSpec | undefined {
     return this.params.find((p) => p.name === name);
   }
@@ -629,6 +971,7 @@ export class WorldScene extends Phaser.Scene {
     this.clearLabels();
     const stage = this.stage;
     if (!stage) return;
+    this.drawRig();
 
     const marker = this.binding('marker');
     const playback = stage.playback;
@@ -637,9 +980,18 @@ export class WorldScene extends Phaser.Scene {
     // at the end — laid along the very path the physics runs on, so the two can
     // never disagree. Anything that flies gets a thin guide line instead,
     // because a trajectory is not a track and should not look like one.
+    // Something that rises gets a shaft, not a route across the floor.
+    if (playback?.shaft) {
+      this.drawShaft(playback);
+      this.spreadPlates();
+      return;
+    }
     const route = playback?.path ?? marker?.path;
     if (route) {
-      if (playback?.actor === 'train') {
+      // Absent `track` means the old behaviour: a train runs on rails and
+      // nothing else does, which is what the hand-written fixtures assume.
+      const rails = playback?.track === 'rails' || (!playback?.track && playback?.actor === 'train');
+      if (rails) {
         drawTrack(this.stageLayer, route.from, route.to, (x, y) => this.toScreen(x, y), {
           bufferStop: true,
         });
@@ -709,9 +1061,24 @@ export class WorldScene extends Phaser.Scene {
   // --- what E and F do ----------------------------------------------------
 
   private onAct(): void {
-    if (this.mode === 'playing') return;
+    if (this.mode === 'playing' || this.exiting) return;
     if (this.mode === 'needle') {
-      this.commit();
+      // On an act with a held control, the board only sets the situation — the
+      // mass, the load — and the run starts on F with a hand on SPACE.
+      if (this.binding('control')) {
+        this.leaveFocus('keep');
+        sfx.commit();
+        this.prompt
+          .setText(`Set. F — ${this.binding('control')?.prompt ?? 'start the run'}`)
+          .setPosition(this.scale.width / 2, this.scale.height - 44)
+          .setVisible(true);
+        this.promptUntil = this.time.now + 2200;
+        return;
+      }
+      // A board with a live dial does not hand the run to React to replay: the
+      // player keeps a hand on the lever and drives it.
+      if (this.liveNeedles().length > 0) this.startDrive();
+      else this.commit();
       return;
     }
     if (this.mode === 'aim') return; // the drag itself commits
@@ -726,7 +1093,19 @@ export class WorldScene extends Phaser.Scene {
     const needle = this.binding('needle');
     if (needle && this.nearAnchor(needle.at)) {
       this.mode = 'needle';
+      this.settleRig();
       sfx.act();
+      if (this.rig) {
+        // The instrument is the whole beam, not the player: frame all of it,
+        // up and to the right, clear of the objective panel and the board.
+        const centre = this.rig.frame();
+        this.cameras.main.stopFollow();
+        this.cameras.main.pan(centre.x - 120, centre.y + 90, 320, 'Sine.easeInOut');
+        this.drawNeedle();
+        return;
+      }
+      // The room stops being the subject the moment the instrument is.
+      focus(this, 1.18);
       this.drawNeedle();
       return;
     }
@@ -735,6 +1114,7 @@ export class WorldScene extends Phaser.Scene {
     if (aim && this.nearAnchor(aim.at)) {
       this.mode = 'aim';
       sfx.act();
+      focus(this, 1.12);
       this.drawAim(null);
       return;
     }
@@ -749,10 +1129,28 @@ export class WorldScene extends Phaser.Scene {
         this.ghostLabel.setVisible(false);
         this.drawStage();
         this.cameras.main.flash(120, 217, 164, 65);
+        punch(this, { strength: 0.08, inMs: 90, holdMs: 60, outMs: 240 });
         sfx.commit();
         gameBus.emit('aiming', { values: { ...this.values } });
         return;
       }
+    }
+
+    // A staged act is played in the world, so React ignores `interact` while
+    // one is running — which meant E on any other prop in the room played a
+    // success chime and did nothing whatsoever. Say what the act actually
+    // wants instead, and name it.
+    // The act's own controls come first; after them, the guide. Standing beside
+    // a prop and the guide at once, E means the person you walked up to.
+    if (this.nearGuide && this.guide) {
+      sfx.act();
+      gameBus.emit('ask', { characterId: this.guide });
+      return;
+    }
+
+    if (this.nearby && this.focus && this.nearby !== this.focus) {
+      this.sayNothingHere(this.nearby);
+      return;
     }
 
     if (this.nearby) {
@@ -765,9 +1163,31 @@ export class WorldScene extends Phaser.Scene {
     sfx.deny();
   }
 
+  /** "Nothing to do here — the X is what this act needs." */
+  private sayNothingHere(touched: string): void {
+    const name = (id: string) =>
+      this.sceneData.interactables.find((it) => it.id === id)?.label?.toLowerCase() ??
+      id.replace(/[-_]/g, ' ');
+    sfx.deny();
+    this.cameras.main.shake(90, 0.002);
+    this.prompt
+      .setText(`Nothing to do at the ${name(touched)} — it is the ${name(this.focus!)} you want`)
+      .setColor('#e0b35e')
+      .setPosition(this.scale.width / 2, this.scale.height - 44)
+      .setVisible(true);
+    // Held long enough to read, then the ambient prompt takes over again.
+    this.promptUntil = this.time.now + 2800;
+    this.time.delayedCall(2800, () => {
+      if (!this.sys.isActive()) return;
+      this.prompt.setColor('#f4ecd8');
+      if (this.mode === 'walk') this.updatePrompt();
+    });
+  }
+
   private onRun(): void {
+    if (this.exiting) return;
     if (this.mode === 'playing' || this.mode === 'driving' || !this.stage) return;
-    if (this.binding('control')) {
+    if (this.binding('control') || this.liveNeedles().length > 0) {
       this.startDrive();
       return;
     }
@@ -784,10 +1204,22 @@ export class WorldScene extends Phaser.Scene {
    */
   private startDrive(): void {
     const control = this.binding('control');
+    const levers = this.liveNeedles();
     const playback = this.stage?.playback;
-    if (!control || !playback || !this.simSpec || !this.spec(control.param)) return;
+    if (!playback || !this.simSpec) return;
+    if (control ? !this.spec(control.param) : levers.length === 0) return;
 
     this.leaveFocus('keep');
+    this.preRun = levers.length > 0 ? { ...this.values } : null;
+    this.activeLever = 0;
+    this.leverHeld = 0;
+    const readout = this.stage?.readout;
+    const gauge = readout ? this.simSpec.outputs[readout.output] : undefined;
+    try {
+      this.gaugeExpr = gauge ? compile(gauge) : null;
+    } catch {
+      this.gaugeExpr = null; // no live gauge beats a dead run
+    }
     this.live = [];
     this.braked = null;
     this.trailLayer.clear();
@@ -801,22 +1233,42 @@ export class WorldScene extends Phaser.Scene {
     this.actor.setPosition(start.x, start.y);
 
     this.mode = 'driving';
+    this.steam?.clear();
+    this.actorWas = null;
     this.rumble?.stop();
     this.rumble = sfx.rumble();
     this.cameras.main.startFollow(this.actor, true, 0.16, 0.16);
     gameBus.emit('aiming', { values: { ...this.values } });
+    // The moment she moves should land in the hands: a shove of the frame and
+    // the latch going, before anything has had time to happen.
+    punch(this, { strength: 0.06, inMs: 80, holdMs: 40, outMs: 260 });
+    sfx.commit();
+    if (levers.length > 0) this.drawLever(levers);
   }
 
   private tickDrive(delta: number): void {
     const control = this.binding('control');
+    const levers = this.liveNeedles();
     const playback = this.stage?.playback;
     const run = this.run;
-    if (!control || !playback || !run || !this.alongExpr) return;
+    if ((!control && levers.length === 0) || !playback || !run || !this.alongExpr) return;
     this.player.body.setVelocity(0, 0);
 
-    const held = this.keys.control.isDown || this.input.activePointer.isDown;
-    const resting = this.spec(control.param)?.min ?? 0;
-    run.advance(delta / 1000, { [control.param]: held ? control.held : resting });
+    // What the hand is holding this frame: a button for a control, wherever the
+    // lever sits for a live dial. The next step reads it, never this one.
+    const controls: Record<string, number> = {};
+    const held = control ? this.keys.control.isDown || this.input.activePointer.isDown : false;
+    if (control) {
+      const resting = this.spec(control.param)?.min ?? 0;
+      controls[control.param] = held ? control.held : resting;
+    }
+    if (levers.length > 0) {
+      this.nudgeLever(delta, levers);
+      for (const lever of levers) {
+        controls[lever.param] = this.values[lever.param] ?? this.spec(lever.param)?.default ?? 0;
+      }
+    }
+    run.advance(delta / 1000, controls);
 
     const scope = run.scope as ExprScope;
     const value = this.alongExpr.evaluate(scope);
@@ -830,19 +1282,150 @@ export class WorldScene extends Phaser.Scene {
     // reason this is synthesised and not a loop being faded up and down.
     this.rumble?.level(Math.min(1, Math.abs((scope.v as number) ?? 0) / 20));
     if (held) sfx.brake();
+    this.puffSteam(delta, here);
 
     this.trailLayer.clear();
     this.strokePoints(this.trailLayer, this.live, held ? RED : GOLD, 0.9, 4);
 
     this.prompt
       .setText(
-        held ? `${(control.label ?? 'brake').toUpperCase()} — hard on` : 'hold SPACE to brake',
+        control
+          ? held
+            ? `${(control.label ?? 'brake').toUpperCase()} — full on`
+            : `hold SPACE — ${control.label ?? 'brake'}`
+          : this.leverLine(levers, run),
       )
       .setColor(held ? '#c05746' : '#f4ecd8')
       .setPosition(this.scale.width / 2, this.scale.height - 44)
       .setVisible(true);
+    if (levers.length > 0) this.drawLever(levers);
 
     if (run.done) this.finishDrive();
+  }
+
+  /**
+   * The lever, worked by hand while the run plays.
+   *
+   * Coarser than the needle at the board — ten notches across the range rather
+   * than sixty — because this is steering, not deduction: the player is
+   * reacting to a body in motion and has to cross the range in about a second.
+   * Every notch clunks and knocks the frame, so a change of hand is felt the
+   * instant it is made.
+   */
+  private nudgeLever(delta: number, levers: Extract<ParamBinding, { kind: 'needle' }>[]): void {
+    if (levers.length > 1) {
+      const up = [this.cursors.up, this.keys.up].some((k) => Phaser.Input.Keyboard.JustDown(k));
+      const down = [this.cursors.down, this.keys.down].some((k) =>
+        Phaser.Input.Keyboard.JustDown(k),
+      );
+      if (up || down) {
+        this.activeLever = (this.activeLever + (down ? 1 : -1) + levers.length) % levers.length;
+        this.leverHeld = 0;
+        sfx.tick(this.activeLever / Math.max(1, levers.length - 1));
+      }
+    }
+    const lever = levers[Math.min(this.activeLever, levers.length - 1)];
+    const spec = lever && this.spec(lever.param);
+    if (!lever || !spec) return;
+
+    const leftKeys = [this.cursors.left, this.keys.left];
+    const rightKeys = [this.cursors.right, this.keys.right];
+    const direction = rightKeys.some((k) => k.isDown) ? 1 : leftKeys.some((k) => k.isDown) ? -1 : 0;
+    let steps = 0;
+    if ([...rightKeys, ...leftKeys].some((k) => Phaser.Input.Keyboard.JustDown(k))) {
+      steps = 1;
+      this.leverHeld = 0;
+    } else if (direction !== 0) {
+      const before = this.leverHeld;
+      this.leverHeld += delta;
+      steps = repeatsBetween(before, this.leverHeld);
+    } else {
+      this.leverHeld = 0;
+    }
+    if (steps === 0 || direction === 0) return;
+
+    const range = spec.max - spec.min;
+    const current = this.values[lever.param] ?? spec.default;
+    const next = snap(
+      Phaser.Math.Clamp(current + (direction * steps * range) / LEVER_NOTCHES, spec.min, spec.max),
+      needleStep(range),
+    );
+    if (next === current) return; // at the stop already
+    this.values[lever.param] = next;
+    sfx.tick((next - spec.min) / Math.max(1e-6, range));
+    this.cameras.main.shake(70, 0.0012);
+  }
+
+  /**
+   * The lever on screen while it is in hand: where it sits, and the notches to
+   * count. Not its number — the number to watch is the one the act is judged
+   * on, and that is on the bottom line.
+   */
+  private drawLever(levers: Extract<ParamBinding, { kind: 'needle' }>[]): void {
+    const g = this.hudLayer;
+    g.clear();
+    const bar = this.needleBar();
+    const row = 34;
+    const top = bar.y - (levers.length - 1) * row;
+    g.fillStyle(0x0b0806, 0.85);
+    g.fillRoundedRect(bar.x - 26, top - 18, bar.w + 52, (levers.length - 1) * row + bar.h + 36, 10);
+    levers.forEach((lever, i) => {
+      const spec = this.spec(lever.param);
+      if (!spec) return;
+      const y = top + i * row;
+      const active = i === this.activeLever;
+      const value = this.values[lever.param] ?? spec.default;
+      const span = Math.max(1e-6, spec.max - spec.min);
+      const fill = ((Phaser.Math.Clamp(value, spec.min, spec.max) - spec.min) / span) * bar.w;
+      g.fillStyle(0x3a2514, 1);
+      g.fillRoundedRect(bar.x, y, bar.w, bar.h, 9);
+      g.fillStyle(GOLD, active ? 0.92 : 0.5);
+      g.fillRoundedRect(bar.x, y, Math.max(bar.h, fill), bar.h, 9);
+      g.lineStyle(1, 0x0b0806, 0.6);
+      for (let n = 1; n < LEVER_NOTCHES; n++) {
+        const x = bar.x + (bar.w * n) / LEVER_NOTCHES;
+        g.lineBetween(x, y + 3, x, y + bar.h - 3);
+      }
+      this.dialLabel(i, { x: bar.x - 14, y: y + bar.h / 2 }, humaniseParam(lever.param), active);
+    });
+  }
+
+  /** The bottom line while driving: the keys, and the judged number, live. */
+  private leverLine(levers: Extract<ParamBinding, { kind: 'needle' }>[], run: Run): string {
+    const keys = levers.length > 1 ? '← → the lever · ↑ ↓ pick one' : '← → the lever';
+    const readout = this.stage?.readout;
+    if (!readout || !this.gaugeExpr) return `${keys} · R start over`;
+    try {
+      const value = this.gaugeExpr.evaluate(run.scope as ExprScope);
+      if (!Number.isFinite(value)) return `${keys} · R start over`;
+      // A drift is read against zero, so its sign is the whole message.
+      const sign = value > 0 && /drift|error|offset/i.test(readout.output) ? '+' : '';
+      return `${keys} · R start over      ${readout.label} ${sign}${format(value)}${readout.unit ?? ''}`;
+    } catch {
+      return `${keys} · R start over`;
+    }
+  }
+
+  /**
+   * R mid-run: throw this attempt away and go again from the same start, now.
+   *
+   * It used to fall through to the full reset, which cleared the run but left
+   * the scene in `driving` — and a driving scene with no run neither moves nor
+   * lets the player move. The retry has to be instant; the time between failing
+   * and trying again is the whole loop.
+   */
+  private restartDrive(): void {
+    this.run = null;
+    this.rumble?.stop();
+    this.rumble = null;
+    if (this.preRun) this.values = { ...this.preRun };
+    this.preRun = null;
+    this.braked = null;
+    this.live = [];
+    this.trailLayer.clear();
+    this.mode = 'walk';
+    sfx.close();
+    this.startDrive();
   }
 
   private finishDrive(): void {
@@ -850,6 +1433,13 @@ export class WorldScene extends Phaser.Scene {
     if (!run) return;
     const result = run.finish();
     this.run = null;
+    // Back to where the lever started, so "again" means the same start and the
+    // only thing that differs between attempts is what the hand did.
+    if (this.preRun) this.values = { ...this.preRun };
+    this.preRun = null;
+    this.gaugeExpr = null;
+    this.hudLayer.clear();
+    for (const label of this.dialNames) label.setVisible(false);
     this.rumble?.stop();
     this.rumble = null;
     sfx.land(result.won);
@@ -857,10 +1447,13 @@ export class WorldScene extends Phaser.Scene {
     const span = this.braked
       ? (result.outputs.stopX ?? result.state.x ?? 0) - this.braked.value
       : 0;
+    // "How far it took to stop once the brake went on" is a brake's lesson.
+    // A thrust or a winch held on and off has no stopping span to label.
+    const braking = (this.binding('control')?.label ?? 'brake') === 'brake';
     this.remember(
       this.live,
       result.won,
-      this.braked
+      this.braked && braking
         ? {
             index: this.braked.index,
             span,
@@ -872,10 +1465,9 @@ export class WorldScene extends Phaser.Scene {
     this.trailLayer.clear();
     this.live = [];
     this.prompt.setColor('#f4ecd8');
-    this.cameras.main.flash(
-      180,
-      ...(result.won ? ([111, 191, 115] as const) : ([192, 87, 70] as const)),
-    );
+    // A knock, a push in and the verdict's colour, all at once. The player has
+    // just done the hard part; the frame should react to it.
+    land(this, result.won);
     // Stay where she stopped: the player needs to see it before walking off.
     this.cameras.main.stopFollow();
     this.cameraParked = true;
@@ -907,7 +1499,9 @@ export class WorldScene extends Phaser.Scene {
     const count = this.ghosts.length;
     for (const [i, ghost] of this.ghosts.entries()) {
       const lane = count - 1 - i; // 0 is the newest, and sits on the track
-      const shift = (p: Point): Point => ({ x: p.x, y: p.y - lane * 17 });
+      const shaft = this.stage?.playback?.shaft;
+      const shift = (p: Point): Point =>
+        shaft ? { x: p.x - lane * 16, y: p.y } : { x: p.x, y: p.y - lane * 17 };
       const latest = lane === 0;
       const points = ghost.points.map(shift);
 
@@ -979,18 +1573,37 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private leaveFocus(values: 'keep' | 'reset' = 'keep'): void {
-    if (this.mode === 'needle' || this.mode === 'aim') this.mode = 'walk';
+    if (this.mode === 'needle' || this.mode === 'aim') {
+      this.mode = 'walk';
+      relax(this);
+      // A balance stays framed until the player walks off, like a finished run.
+      if (this.rig) this.cameraParked = true;
+    }
     this.hudLayer.clear();
+    this.consequence.setVisible(false);
+    for (const label of this.dialNames) label.setVisible(false);
     this.ghostLayer.clear();
     this.readout.setVisible(false);
     if (values === 'reset') this.ghostLabel.setVisible(false);
   }
 
   private resetStage(): void {
+    if (this.mode === 'driving') {
+      this.restartDrive();
+      return;
+    }
+    this.focus = this.focusProp();
     this.rumble?.stop();
     this.rumble = null;
+    this.steam?.clear();
+    this.actorWas = null;
     if (this.mode === 'playing') return;
     this.values = Object.fromEntries(this.params.map((p) => [p.name, p.default]));
+    this.rigSettle?.stop();
+    this.rigTilt = 0;
+    this.rigLive = false;
+    this.rigDelivered = 0;
+    this.rigVerdict = null;
     this.planted = false;
     this.hasAimed = false;
     this.dragging = false;
@@ -1032,75 +1645,184 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private drawNeedle(): void {
-    const needle = this.binding('needle');
-    const spec = needle && this.spec(needle.param);
-    if (!needle || !spec) return;
+    const dials = this.needles();
+    const held = this.heldNeedle();
+    if (!held || dials.length === 0) return;
 
     const bar = this.needleBar();
-    const value = this.values[needle.param] ?? spec.default;
-    const at = (v: number) =>
-      bar.x +
-      ((Phaser.Math.Clamp(v, spec.min, spec.max) - spec.min) / (spec.max - spec.min)) * bar.w;
-
     const g = this.hudLayer;
     g.clear();
 
+    // The whole board, sized to how many dials are on it. Tighter past four,
+    // or a deck with four loads is a board that covers the deck.
+    const row = dials.length > 4 ? 28 : 46;
+    const top = bar.y - 100 - (dials.length - 1) * row;
     g.fillStyle(0x0b0806, 0.92);
-    g.fillRoundedRect(bar.x - 26, bar.y - 100, bar.w + 52, 158, 10);
+    g.fillRoundedRect(bar.x - 26, top, bar.w + 52, 158 + (dials.length - 1) * row, 10);
 
-    g.fillStyle(0x3a2514, 1);
-    g.fillRoundedRect(bar.x, bar.y, bar.w, bar.h, 9);
+    dials.forEach((needle, i) => {
+      const spec = this.spec(needle.param);
+      if (!spec) return;
+      const y = bar.y - (dials.length - 1 - i) * row;
+      const active = i === this.activeNeedle;
+      const value = this.values[needle.param] ?? spec.default;
+      const at = (v: number) =>
+        bar.x +
+        ((Phaser.Math.Clamp(v, spec.min, spec.max) - spec.min) / (spec.max - spec.min)) * bar.w;
 
-    // The band is the claim being tested: inside it, a person could have walked.
-    if (needle.band) {
-      const from = at(needle.band.from);
-      const to = at(needle.band.to);
-      g.fillStyle(GREEN, 0.75);
-      g.fillRoundedRect(from, bar.y, Math.max(2, to - from), bar.h, 9);
-    }
+      g.fillStyle(0x3a2514, active ? 1 : 0.55);
+      g.fillRoundedRect(bar.x, y, bar.w, bar.h, 9);
 
-    const x = at(value);
+      // The band is the claim being tested: inside it, a person could have walked.
+      if (needle.band) {
+        const from = at(needle.band.from);
+        const to = at(needle.band.to);
+        g.fillStyle(GREEN, active ? 0.75 : 0.4);
+        g.fillRoundedRect(from, y, Math.max(2, to - from), bar.h, 9);
+      }
+
+      const x = at(value);
+      const outside =
+        needle.band !== undefined && (value < needle.band.from || value > needle.band.to);
+      const tint = outside ? RED : GOLD;
+      g.lineStyle(active ? 3 : 2, tint, active ? 1 : 0.45);
+      g.beginPath();
+      g.moveTo(x, y - 18);
+      g.lineTo(x, y + bar.h + 12);
+      g.strokePath();
+      // The pointer over the held dial would sit on the row above on a tight board.
+      if (active && row >= 46) {
+        g.fillStyle(tint, 1);
+        g.beginPath();
+        g.moveTo(x, y - 18);
+        g.lineTo(x - 11, y - 36);
+        g.lineTo(x + 11, y - 36);
+        g.closePath();
+        g.fillPath();
+      }
+
+      // Each dial says its own name, so two of them are two things rather
+      // than two identical sliders.
+      // A live dial says so: it is the one you will still be holding.
+      this.dialLabel(
+        i,
+        { x: bar.x - 14, y: y + bar.h / 2 },
+        `${needle.label ?? humaniseParam(needle.param)}${needle.live ? ' (live)' : ''}`,
+        active,
+      );
+    });
+
+    const spec = this.spec(held.param)!;
+    const value = this.values[held.param] ?? spec.default;
     const outside =
-      needle.band !== undefined && (value < needle.band.from || value > needle.band.to);
-    const tint = outside ? RED : GOLD;
-    g.lineStyle(3, tint, 1);
-    g.beginPath();
-    g.moveTo(x, bar.y - 18);
-    g.lineTo(x, bar.y + bar.h + 12);
-    g.strokePath();
-    g.fillStyle(tint, 1);
-    g.beginPath();
-    g.moveTo(x, bar.y - 18);
-    g.lineTo(x - 11, bar.y - 36);
-    g.lineTo(x + 11, bar.y - 36);
-    g.closePath();
-    g.fillPath();
-
-    const unit = needle.unit ? ` ${needle.unit}` : '';
+      held.band !== undefined && (value < held.band.from || value > held.band.to);
+    const unit = held.unit ? ` ${held.unit}` : '';
     this.readout
       .setText(`${format(value)}${unit}`)
       .setColor(outside ? '#c05746' : '#d9a441')
-      .setPosition(this.scale.width / 2, bar.y - 66)
+      .setPosition(this.scale.width / 2, top - 34)
       .setVisible(true);
 
-    const caption = needle.band?.label ? `green — ${needle.band.label}` : '';
+    // The consequence of this setting, not the setting. The verdict is still
+    // withheld — this says what happens, never whether it is right.
+    const says = this.previewReadout();
+    this.consequence
+      .setText(says ?? '')
+      .setPosition(this.scale.width / 2, top - 70)
+      .setVisible(says !== null);
+
+    const caption = held.band?.label ? `green — ${held.band.label}` : '';
+    const switcher = dials.length > 1 ? ' · ↑ ↓ pick a dial' : '';
     this.prompt
-      .setText(`← → set the needle · E confirm · Esc step back${caption ? `\n${caption}` : ''}`)
+      .setText(
+        this.rig
+          ? `← → move it${dials.length > 1 ? ' · ↑ ↓ pick what to change' : ''} · E let go · Esc step back`
+          : `← → set the needle${switcher} · ${this.binding('control') ? 'E done, then F to start' : this.liveNeedles().length > 0 ? 'E go — keep your hand on it' : 'E confirm'} · Esc step back${caption ? `\n${caption}` : ''}`,
+      )
       .setPosition(this.scale.width / 2, bar.y + 92)
       .setVisible(true);
+    this.drawRig();
   }
+
+  /** One name beside each dial, reused between redraws. */
+  private dialLabel(index: number, at: Point, text: string, active: boolean): void {
+    let label = this.dialNames[index];
+    if (!label) {
+      label = this.add
+        .text(0, 0, '', { fontFamily: 'monospace', fontSize: '13px' })
+        .setOrigin(1, 0.5)
+        .setScrollFactor(0)
+        .setDepth(9600);
+      this.dialNames[index] = label;
+    }
+    label
+      .setText(text)
+      .setColor(active ? '#d9a441' : '#8a8070')
+      .setPosition(at.x, at.y)
+      .setVisible(true);
+  }
+
 
   /**
    * One step per tap, and a steady repeat while held. Discrete on purpose: the
    * answer here is a particular number, and hunting for it with a continuous
    * slider is dexterity, not deduction.
    */
+  /**
+   * Run the act's own simulation at whatever the dials currently say, and
+   * report the number the act is judged on.
+   *
+   * The same engine that decides the verdict, so the preview can never
+   * disagree with the result — and no win condition in it, because being told
+   * the answer is not the same as working it out.
+   */
+  private previewReadout(): string | null {
+    const readout = this.stage?.readout;
+    if (!readout || !this.simSpec) return null;
+    // A centre of mass no dial can move would be the answer printed on the
+    // board. It is shown once the beam has been let go and has said so itself.
+    if (this.rig && !this.rig.comLive && this.rigRuns === 0 && readout.label.startsWith('centre')) {
+      return null;
+    }
+    // Where a lever will put its load is what releasing it is for. The torques
+    // are on the loads already; the height is found out, not read off a board.
+    if (this.rig?.delivers) return null;
+    try {
+      const run = simulate(this.simSpec, { ...this.values });
+      const value = run.outputs[readout.output];
+      if (value === undefined || !Number.isFinite(value)) return null;
+      return `${readout.label} ${format(value)}${readout.unit ?? ''}`;
+    } catch {
+      // A dial set somewhere the spec cannot cope with says nothing useful.
+      return null;
+    }
+  }
+
   private tickNeedle(delta: number): void {
-    const needle = this.binding('needle');
+    const dials = this.needles();
+    const needle = this.heldNeedle();
     const spec = needle && this.spec(needle.param);
     if (!needle || !spec) return;
 
     this.player.body.setVelocity(0, 0);
+
+    // Up and down pick the dial; left and right turn it. A tap each, so a
+    // two-dial board never scrolls away under a held key.
+    if (dials.length > 1) {
+      const up = [this.cursors.up, this.keys.up].some((k) => Phaser.Input.Keyboard.JustDown(k));
+      const down = [this.cursors.down, this.keys.down].some((k) =>
+        Phaser.Input.Keyboard.JustDown(k),
+      );
+      if (up || down) {
+        this.activeNeedle =
+          (this.activeNeedle + (down ? 1 : -1) + dials.length) % dials.length;
+        this.needleHeld = 0;
+        sfx.tick(this.activeNeedle / Math.max(1, dials.length - 1));
+        this.drawNeedle();
+        return;
+      }
+    }
+
     const leftKeys = [this.cursors.left, this.keys.left];
     const rightKeys = [this.cursors.right, this.keys.right];
     const held = (keys: Phaser.Input.Keyboard.Key[]) => keys.some((k) => k.isDown);
@@ -1224,14 +1946,15 @@ export class WorldScene extends Phaser.Scene {
     samples: SimSample[];
   }): void {
     if (!this.sys.isActive()) return;
+    if (this.rig) {
+      this.playBalance(payload);
+      return;
+    }
     const playback = this.stage?.playback;
     if (!playback) {
       // Nothing travels in this act: the verdict is the needle itself.
       this.mode = 'walk';
-      this.cameras.main.flash(
-        200,
-        ...(payload.won ? ([111, 191, 115] as const) : ([192, 87, 70] as const)),
-      );
+      land(this, payload.won);
       if (payload.won) sfx.win();
       else sfx.lose();
       gameBus.emit('played', { won: payload.won });
@@ -1272,6 +1995,7 @@ export class WorldScene extends Phaser.Scene {
         this.strokePoints(this.trailLayer, points.slice(0, i + 1), GOLD, 0.85, 3);
         // Loudest in the middle of the flight, falling away as it arrives.
         this.rumble?.level(Math.sin((i / Math.max(1, points.length - 1)) * Math.PI) * 0.7);
+        if (playback.actor === 'train') this.puffSteam(this.game.loop.delta, here);
       },
       onComplete: () => {
         const last = points[points.length - 1]!;
@@ -1281,16 +2005,162 @@ export class WorldScene extends Phaser.Scene {
         this.rumble = null;
         sfx.land(payload.won);
         this.remember(points, payload.won);
-        this.cameras.main.flash(
-          180,
-          ...(payload.won ? ([111, 191, 115] as const) : ([192, 87, 70] as const)),
-        );
+        land(this, payload.won);
         this.ghostLayer.clear();
         this.ghostLabel.setVisible(false);
         this.cameras.main.stopFollow();
         this.cameraParked = true;
         this.mode = 'walk';
         gameBus.emit('played', { won: payload.won });
+      },
+    });
+  }
+
+  // --- a balance, let go ----------------------------------------------------
+
+  /** Draw the beam as it stands: dials, tilt, what is in hand, the verdict. */
+  private drawRig(): void {
+    if (!this.rig) return;
+    const held = this.mode === 'needle' ? (this.heldNeedle()?.param ?? null) : null;
+    this.rig.draw({
+      values: this.values,
+      // At rest the beam lies where the sim's own initial state puts it, so
+      // sliding the fulcrum re-seats the plank on the floor as it would.
+      tilt: this.rigLive ? this.rigTilt : this.rig.restTilt(this.values),
+      held,
+      showCom: this.rig.comLive || this.rigRuns > 0,
+      verdict: this.rigVerdict ? (this.rigVerdict.won ? 'won' : 'lost') : null,
+      ...(this.rigVerdict ? { note: this.rigVerdict.note } : {}),
+      delivered: this.rigDelivered,
+      time: this.time.now,
+    });
+  }
+
+  /**
+   * Hands off the beam: it plays the run React simulated, sample by sample.
+   * The tilt is the sim's angle and the timing is the sim's clock, so a beam
+   * that creeps over slowly is a centre of mass that is only just off.
+   */
+  private playBalance(payload: {
+    won: boolean;
+    values: Record<string, number>;
+    samples: SimSample[];
+  }): void {
+    const rig = this.rig!;
+    this.rigSettle?.stop();
+    this.values = { ...payload.values };
+    this.rigVerdict = null;
+    this.rigDelivered = 0;
+    this.rigLive = true;
+    const tilts = rig.tilts(payload.samples);
+    // The last sample carries the run's outputs: the verdict is told from them.
+    const outputs = payload.samples[payload.samples.length - 1];
+    let grounded = false;
+    const verdict = () => {
+      this.rigVerdict = {
+        won: payload.won,
+        note: rig.explain(this.values, this.rigTilt, payload.won, outputs),
+      };
+      this.drawStage();
+      sfx.land(payload.won);
+      land(this, payload.won);
+      this.mode = 'walk';
+      gameBus.emit('played', { won: payload.won });
+    };
+    const finish = () => {
+      const first = tilts[0] ?? 0;
+      this.rigTilt = tilts[tilts.length - 1] ?? this.rigTilt;
+      this.rigRuns++;
+      this.rumble?.stop();
+      this.rumble = null;
+      if (!grounded && Math.abs(this.rigTilt - first) > 0.01) {
+        // The swing ends with the counterweight's end on the floor.
+        impact(this, 0.006, 150);
+        sfx.bump();
+      }
+      if (!payload.won || !rig.delivers) {
+        verdict();
+        return;
+      }
+      // Won, and there is somewhere to put it: the crate goes onto the platform
+      // first, and only then does the verdict land. The sim has already said
+      // it got high enough; this is the consequence, not the decision.
+      const slide = { t: 0 };
+      this.tweens.add({
+        targets: slide,
+        t: 1,
+        duration: 700,
+        ease: 'Linear',
+        onUpdate: () => {
+          this.rigDelivered = slide.t;
+          this.drawRig();
+        },
+        onComplete: () => {
+          this.rigDelivered = 1;
+          verdict();
+        },
+      });
+    };
+
+    if (tilts.length < 2) {
+      // Nothing turns in this act: a short beat for the centre of mass to
+      // settle over the deck, then the verdict.
+      this.rigRuns++;
+      this.drawRig();
+      this.time.delayedCall(450, () => this.sys.isActive() && verdict());
+      return;
+    }
+
+    const seconds = payload.samples[payload.samples.length - 1]?.t ?? 2;
+    const cursor = { i: 0 };
+    this.rumble?.stop();
+    this.rumble = sfx.rumble();
+    this.tweens.add({
+      targets: cursor,
+      i: tilts.length - 1,
+      duration: Phaser.Math.Clamp(seconds * 1000, 900, 3200),
+      ease: 'Linear',
+      onUpdate: () => {
+        const i = Math.floor(cursor.i);
+        const a = tilts[i] ?? 0;
+        const b = tilts[Math.min(i + 1, tilts.length - 1)] ?? a;
+        this.rigTilt = a + (b - a) * (cursor.i - i);
+        this.rumble?.level(Math.min(0.6, Math.abs(b - a) * 40));
+        if (!grounded && rig.grounded(this.rigTilt, this.values)) {
+          // The end meets the floor: that is the moment it has tipped.
+          grounded = true;
+          impact(this, 0.007, 160);
+          sfx.bump();
+        }
+        this.drawRig();
+      },
+      onComplete: finish,
+    });
+  }
+
+  /** Back to rest when the player takes hold again: a new setting, a new try. */
+  private settleRig(): void {
+    if (!this.rig) return;
+    this.rigVerdict = null;
+    this.rigDelivered = 0;
+    if (!this.rigLive) {
+      this.drawRig();
+      return;
+    }
+    this.rigSettle?.stop();
+    const state = { tilt: this.rigTilt };
+    this.rigSettle = this.tweens.add({
+      targets: state,
+      tilt: this.rig.restTilt(this.values),
+      duration: 320,
+      ease: 'Back.easeOut',
+      onUpdate: () => {
+        this.rigTilt = state.tilt;
+        this.drawRig();
+      },
+      onComplete: () => {
+        this.rigLive = false;
+        this.drawRig();
       },
     });
   }
@@ -1302,10 +2172,83 @@ export class WorldScene extends Phaser.Scene {
    * lead-in, because a train that appears at the brake marker has no weight.
    */
   private pathPoint(playback: Playback, value: number, height: number): Point {
+    if (playback.shaft) {
+      const base = this.toScreen(playback.path.from.x, playback.path.from.y);
+      const scale = this.shaftScale(playback);
+      const climbed = (value - playback.path.fromValue) * scale;
+      // Going down, the run starts at the head of the shaft and sinks to its foot.
+      const span = Math.abs(playback.path.toValue - playback.path.fromValue) * scale;
+      return { x: base.x, y: base.y - (playback.descends ? span - climbed : climbed) };
+    }
     const world = this.alongPath(playback.path, value);
     const p = this.toScreen(world.x, world.y);
     const scale = playback.liftScale ?? this.pathScale(playback.path);
     return { x: p.x, y: p.y - height * scale };
+  }
+
+  /**
+   * Screen px per unit of height up a shaft: as tall as the room lets the
+   * camera show above the base, never so tall the top is out of the world.
+   */
+  private shaftScale(playback: Playback): number {
+    if (playback.liftScale) return playback.liftScale;
+    const base = this.toScreen(playback.path.from.x, playback.path.from.y);
+    const room = Phaser.Math.Clamp(base.y + 120, 220, 460);
+    const span = Math.abs(playback.path.toValue - playback.path.fromValue) || 1;
+    return room / span;
+  }
+
+  /**
+   * A shaft: two iron guide rails going straight up from the base, braced and
+   * marked every round number, with the band you have to stop in painted
+   * across them. Drawn over the props, because the lift is the subject.
+   */
+  private drawShaft(playback: Playback): void {
+    const g = this.shaftLayer ?? (this.shaftLayer = this.add.graphics().setDepth(8400));
+    g.clear();
+    const at = (v: number) => this.pathPoint(playback, v, 0);
+    const base = at(playback.path.fromValue);
+    const top = at(playback.path.toValue);
+    const w = 30;
+    // Footing and the pit it rises from.
+    g.fillStyle(0x000000, 0.35);
+    g.fillEllipse(base.x, base.y + 4, w * 3.2, w * 1.2);
+    g.fillStyle(0x2a2622, 1);
+    g.fillRect(base.x - w - 8, base.y - 6, w * 2 + 16, 10);
+    // Rails, with a highlight on the lit side.
+    for (const dx of [-w, w]) {
+      g.lineStyle(6, 0x3c4048, 1);
+      g.lineBetween(base.x + dx, base.y, top.x + dx, top.y - 14);
+      g.lineStyle(2, 0x8e969e, 0.8);
+      g.lineBetween(base.x + dx - 2, base.y, top.x + dx - 2, top.y - 14);
+    }
+    // Cross-braces and the height scale, at round numbers.
+    const span = playback.path.toValue - playback.path.fromValue;
+    const step = niceStep(Math.abs(span));
+    for (let v = playback.path.fromValue + step; v <= playback.path.toValue + 1e-9; v += step) {
+      const p = at(v);
+      g.lineStyle(2, 0x3c4048, 0.9);
+      g.lineBetween(p.x - w, p.y, p.x + w, p.y);
+      this.label({ x: p.x - w - 30, y: p.y + 9 }, `${format(v)}${playback.path.unit ?? ''}`, '#f4ecd8aa', 12);
+    }
+    // The head frame at the top.
+    g.fillStyle(0x3c4048, 1);
+    g.fillRect(top.x - w - 10, top.y - 22, w * 2 + 20, 10);
+    // The band that wins, across the rails at the heights it covers.
+    if (this.target) {
+      const a = at(this.target.from);
+      const b = at(this.target.to);
+      g.fillStyle(GREEN, 0.22);
+      g.fillRect(a.x - w, Math.min(a.y, b.y), w * 2, Math.max(4, Math.abs(a.y - b.y)));
+      g.lineStyle(4, GREEN, 0.9);
+      for (const p of [a, b]) g.lineBetween(p.x - w - 6, p.y, p.x + w + 6, p.y);
+      this.label(
+        { x: a.x + w + 70, y: (a.y + b.y) / 2 + 9 },
+        'stop in here',
+        '#6fbf73',
+        14,
+      );
+    }
   }
 
   private pathPoints(playback: Playback, samples: SimSample[]): Point[] {
@@ -1383,6 +2326,30 @@ export class WorldScene extends Phaser.Scene {
       const { along, squash } = this.routeBasis();
       // Half again a person's height. At 1:1 it read as a model on a shelf.
       drawLocomotive(g, along, squash, 1.3);
+    } else if (actor === 'body') {
+      // The neutral traveller: a slung load. A cage on a cable, a crate on a
+      // lorry, a weighed wagon — whatever a generated act is actually moving,
+      // this is a thing of mass going somewhere rather than a guess at it.
+      const { along } = this.routeBasis();
+      const hook = { x: along.x * 0, y: -34 };
+      g.lineStyle(3, 0x8e969e, 1);
+      g.beginPath();
+      g.moveTo(hook.x, hook.y - 26);
+      g.lineTo(hook.x, hook.y + 4);
+      g.strokePath();
+      g.fillStyle(0x6b4a2a, 1);
+      g.fillRoundedRect(-20, -30, 40, 34, 4);
+      g.fillStyle(0x8a5a2b, 1);
+      g.fillRoundedRect(-20, -30, 40, 11, 3);
+      g.lineStyle(2.5, 0x4a3426, 1);
+      g.strokeRoundedRect(-20, -30, 40, 34, 4);
+      g.lineStyle(2, 0x8e969e, 0.9);
+      g.beginPath();
+      g.moveTo(-20, -14);
+      g.lineTo(20, -14);
+      g.strokePath();
+      g.fillStyle(GOLD, 1);
+      g.fillCircle(hook.x, hook.y - 26, 4);
     } else {
       // A satchel: a flap, a buckle and a strap, so what is in the air is a
       // bag of mail and not a brown square.
@@ -1430,26 +2397,37 @@ export class WorldScene extends Phaser.Scene {
     const room = { width, height };
     const nearWall = (r: Rect) => r.y + r.h >= height - 1 || r.x + r.w >= width - 1;
 
+    // A painted room arrives with its own edges — cliffs, retaining walls, a
+    // shed roof — so drawing the perimeter again stacks grey boxes on top of
+    // stonework that is already there. The colliders are untouched: those are
+    // physics bodies made in create(), not these graphics.
+    const painted = Boolean(this.sceneData.imageUrl);
+
     for (const rect of blocked) {
-      const g = this.add.graphics();
       // Depth from the front corner: the player passes in front once past it.
       const depth = isoDepth(rect.x + rect.w, rect.y + rect.h);
       if (!isWall(rect, room)) {
-        drawFurniture(g, rect, view);
+        const g = this.add.graphics();
+        const kind = drawFurniture(g, rect, view);
         g.setDepth(depth);
+        if (kind === 'lamp') this.lightUp(rect, 150);
         continue;
       }
+      if (painted) continue;
+      const g = this.add.graphics();
       const flat = nearWall(rect);
       drawWall(g, rect, view, flat);
       g.setDepth(flat ? 0.4 : depth);
     }
 
     this.footprints = this.add.graphics().setDepth(0.6);
+    // Above the world, below the name plates: a marker you cannot lose behind
+    // a crate, that never covers the label telling you what you are looking at.
+    this.beacon = this.add.graphics().setDepth(9050);
 
     for (const target of interactables) {
-      const g = this.add.graphics();
-      drawProp(g, target, view);
-      g.setDepth(isoDepth(target.x + target.w, target.y + target.h));
+      const kind = this.placeProp(target, view);
+      if (kind === 'lamp') this.lightUp(target, 160);
 
       const apex = propApex(target, view);
       const text = this.add
@@ -1465,7 +2443,159 @@ export class WorldScene extends Phaser.Scene {
       this.plates.push({ id: target.id, text, home: apex.y });
     }
 
+    // A way out is a lit way out: the one thing in the room the player is
+    // allowed to leave by should read as somewhere light is coming from.
+    for (const exit of this.sceneData.exits) this.lightUp(exit, 140, 0xd9a441, 0.3);
+
+    this.focus = this.focusProp();
+    // The one object the act actually wants you to touch gets the lamp. The
+    // footprint ring says which prop is live; light says which is *the* prop.
+    const lit = interactables.find((target) => target.id === this.focus);
+    if (lit) this.lightUp(lit, Math.max(lit.w, 170) * 0.95, 0xe2a33c, 0.26);
     this.lightProps(true);
+  }
+
+  /**
+   * The interactable the act's binding actually sits on, if any.
+   *
+   * A marker or a drive is about a stretch of track rather than an object, so
+   * those have no focus and the beacon stays off — pointing at a prop that is
+   * not the point would be worse than pointing at nothing.
+   */
+  private focusProp(): string | null {
+    // A balance's subject is the beam, which is not a prop; see drawBeacon.
+    if (this.stage?.balance) return null;
+    const anchor = this.binding('needle')?.at ?? this.binding('aim')?.at;
+    if (!anchor) return null;
+    let best: string | null = null;
+    let closest = Infinity;
+    for (const it of this.sceneData.interactables) {
+      const distance = Phaser.Math.Distance.Between(
+        anchor.x,
+        anchor.y,
+        it.x + it.w / 2,
+        it.y + it.h / 2,
+      );
+      if (distance < closest) {
+        closest = distance;
+        best = it.id;
+      }
+    }
+    // The anchor is placed just off its own prop; anything further away than
+    // that is a coincidence, not the subject.
+    return closest <= 300 ? best : null;
+  }
+
+  /**
+   * The beacon: a ring that breathes and a chevron that bobs, over the prop
+   * the act needs. It stops the moment the player is holding the thing,
+   * because by then it has done its job and is only in the way.
+   */
+  private drawBeacon(time: number): void {
+    // Only an isometric room draws volumes, so a top-down room has no beacon.
+    if (!this.iso || !this.beacon) return;
+    this.beacon.clear();
+    if (this.mode !== 'walk' || this.exiting) return;
+
+    // Once the act is won there is nothing left to do at the prop: the thing to
+    // walk to is the way out, so the beacon moves to the gate.
+    let ground: Point;
+    let apex: Point;
+    let here: boolean;
+    const gate = this.gate?.open ? this.gateRect : null;
+    if (gate) {
+      ground = this.toScreen(gate.x + gate.w / 2, gate.y + gate.h / 2);
+      apex = { x: ground.x, y: ground.y - GATE_HEIGHT - 34 };
+      here = this.nearGate();
+    } else if (this.rig && !this.rigVerdict?.won) {
+      ({ ground, apex } = this.rig.beacon());
+      const anchor = this.binding('needle')?.at;
+      here = anchor ? this.nearAnchor(anchor) : false;
+    } else {
+      if (!this.focus) return;
+      const target = this.sceneData.interactables.find((it) => it.id === this.focus);
+      if (!target) return;
+      apex = propApex(target, this.iso);
+      ground = this.toScreen(target.x + target.w / 2, target.y + target.h / 2);
+      here = this.nearby === this.focus;
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(time / 320);
+
+    // The ring on the floor, breathing.
+    const radius = 34 + pulse * 10;
+    this.beacon.lineStyle(2.5, GOLD, (here ? 0.5 : 0.85) * (0.45 + 0.55 * (1 - pulse)));
+    this.beacon.strokeEllipse(ground.x, ground.y, radius * 2, radius);
+
+    if (here) return; // standing on it: the prompt takes over from here.
+
+    // A chevron above it, bobbing. Down-pointing, because it is pointing at
+    // the thing underneath it rather than at the sky.
+    const y = apex.y - 26 - pulse * 7;
+    this.beacon.fillStyle(GOLD, 0.95);
+    this.beacon.fillTriangle(apex.x - 9, y, apex.x + 9, y, apex.x, y + 13);
+    this.beacon.fillStyle(GOLD, 0.25 + pulse * 0.2);
+    this.beacon.fillTriangle(apex.x - 15, y - 9, apex.x + 15, y - 9, apex.x, y + 8);
+  }
+
+  /** A pool of light on the floor under something that burns. */
+  private lightUp(rect: Rect, radius: number, tint?: number, alpha?: number): void {
+    if (!this.iso) return;
+    const at = this.toScreen(rect.x + rect.w / 2, rect.y + rect.h / 2);
+    const pool = addLightPool(this, at, radius, tint, alpha);
+    // Dust lives in the light, above the world and under the vignette.
+    const motes = new Motes(this.add.graphics().setDepth(8800), at, radius);
+    this.pools.push({ pool, motes, seed: (rect.x * 7 + rect.y * 13) % 100 });
+  }
+
+  /**
+   * One prop: painted if the art director reached it, drawn if it did not.
+   *
+   * The painting is hung on the rect the mapper placed — same footprint, same
+   * depth, same name plate — so the collider and the picture cannot drift
+   * apart, which is the whole reason this pipeline paints props one at a time
+   * instead of painting a backdrop.
+   *
+   * Scale comes from the prop's own standing height, not from the size of the
+   * frame it was painted in, so a dial and a winch drum end up the size the
+   * room says they are rather than the size the model happened to crop them.
+   */
+  private placeProp(target: Interactable, view: IsoView): PropKind {
+    const depth = isoDepth(target.x + target.w, target.y + target.h);
+    const texture = isPaintedUrl(target.imageUrl) ? cutout(this, propKey(target.id)) : null;
+
+    if (!texture) {
+      const g = this.add.graphics().setDepth(depth);
+      return drawProp(g, target, view).kind;
+    }
+
+    const at = isoProject(target.x + target.w / 2, target.y + target.h / 2, view);
+    const image = this.add.image(at.x, at.y, texture).setOrigin(0.5, 1).setDepth(depth);
+    const aspect = image.width / image.height;
+    let tall = propHeight(target) * 1.3;
+    let wide = tall * aspect;
+    // A wide subject may not blanket the floor it is standing on: past the
+    // diamond it would cover the props behind it and the player walking past.
+    const widest = (target.w + target.h) * ISO_X * 1.5;
+    if (wide > widest) {
+      wide = widest;
+      tall = wide / aspect;
+    }
+    image.setDisplaySize(wide, tall).setTint(WARM);
+    this.shadowUnder(at, wide);
+    return propKindFor(target);
+  }
+
+  /**
+   * The dark patch that says a thing is standing on the floor rather than
+   * hovering over it. The drawn props shade their own bases; a painted plate
+   * has no base to shade.
+   */
+  private shadowUnder(at: Point, width: number): void {
+    const g = this.add.graphics().setDepth(0.5);
+    g.fillStyle(0x000000, 0.3);
+    g.fillEllipse(at.x, at.y, width * 0.7, width * 0.3);
+    g.fillStyle(0x000000, 0.22);
+    g.fillEllipse(at.x, at.y, width * 0.95, width * 0.42);
   }
 
   /**
@@ -1483,18 +2613,30 @@ export class WorldScene extends Phaser.Scene {
       const at = this.toScreen(spot.x, spot.y);
       const depth = isoDepth(spot.x, spot.y);
 
-      const actor = new Actor(this, lookFor(member.id));
-      // Turned to face into the room rather than all one way, so the spot
-      // reads as somewhere a person chose to stand.
-      actor.turn(spot.x < this.sceneData.width / 2 ? 1 : -1, 1);
-      actor.step(0, 0, 0, at, depth);
-      this.extras.push({ actor, at, depth });
+      const texture = isPaintedUrl(member.sprite) ? cutout(this, castKey(member.id)) : null;
+      if (texture) {
+        const image = this.add.image(at.x, at.y, texture).setOrigin(0.5, 1).setDepth(depth);
+        // Painted to the same height the drawn cast stand at. One room is one
+        // scale: a portrait-sized stranger beside a 58px clerk is two games.
+        image.setDisplaySize(CAST_HEIGHT * (image.width / image.height), CAST_HEIGHT);
+        image.setTint(WARM);
+        this.shadowUnder(at, CAST_HEIGHT * 0.52);
+        this.extras.push({ image, phase: seedPhase(member.id), at, spot, depth });
+      } else {
+        const actor = new Actor(this, lookFor(member.id));
+        // Turned to face into the room rather than all one way, so the spot
+        // reads as somewhere a person chose to stand.
+        actor.turn(spot.x < this.sceneData.width / 2 ? 1 : -1, 1);
+        actor.step(0, 0, 0, at, depth);
+        this.extras.push({ actor, at, spot, depth });
+      }
 
+      const plate = member.id === this.guide ? `${member.name} · ask me` : member.name;
       this.plates.push({
         id: `cast-${member.id}`,
         home: at.y + 16,
         text: this.add
-          .text(at.x, at.y + 16, member.name, {
+          .text(at.x, at.y + 16, plate, {
             fontFamily: 'monospace',
             fontSize: '13px',
             color: '#c9b9a0',
@@ -1504,8 +2646,275 @@ export class WorldScene extends Phaser.Scene {
           .setOrigin(0.5, 0)
           .setDepth(9100),
       });
+
+      // The one person in the room you can ask anything gets the mark every
+      // game uses for exactly that, so nobody has to be told who it is.
+      if (member.id === this.guide) {
+        const home = at.y - CAST_HEIGHT - 14;
+        this.guideMark = {
+          home,
+          text: this.add
+            .text(at.x, home, '?', {
+              fontFamily: 'monospace',
+              fontSize: '20px',
+              fontStyle: 'bold',
+              color: '#0b0806',
+              backgroundColor: '#d9a441',
+              padding: { x: 8, y: 2 },
+            })
+            .setOrigin(0.5, 1)
+            .setDepth(9100),
+        };
+      }
     }
     this.spreadPlates();
+  }
+
+  /**
+   * Scenery that stands between the camera and something that matters.
+   *
+   * The dressing keeps its footprints clear of people and props, but on an
+   * isometric floor that is not the same as staying out of sight: a tree a
+   * few metres in front of someone still covers them, canopy and all. The
+   * first room this was looked at in hid the guide entirely behind one — a
+   * name plate floating over a tree, and nobody under it.
+   *
+   * So anything upright that sits in front of a person or a prop and overlaps
+   * them on screen is drawn see-through, which is what isometric games do. The
+   * player is checked every frame in `revealHidden`; everyone else stands
+   * still and is checked once, here.
+   */
+  private findOccluders(interactables: Interactable[]): void {
+    if (!this.iso) return;
+    const prefix = dressKey('');
+    this.scenery = this.children.list
+      .filter(
+        (o): o is Phaser.GameObjects.Image =>
+          o instanceof Phaser.GameObjects.Image &&
+          o.texture.key.startsWith(prefix) &&
+          o.originY === 1, // uprights stand on their feet; floor decals are centred
+      )
+      .map((image) => ({ image, box: image.getBounds() }));
+
+    const keep: { box: Phaser.Geom.Rectangle; depth: number }[] = [
+      ...this.extras.map(({ at, depth }) => ({
+        box: new Phaser.Geom.Rectangle(at.x - 20, at.y - CAST_HEIGHT - 10, 40, CAST_HEIGHT + 10),
+        depth,
+      })),
+      ...interactables.map((target) => {
+        const at = isoProject(target.x + target.w / 2, target.y + target.h / 2, this.iso!);
+        const wide = (target.w + target.h) * ISO_X * 0.8;
+        const tall = propHeight(target) * 1.3;
+        return {
+          box: new Phaser.Geom.Rectangle(at.x - wide / 2, at.y - tall, wide, tall),
+          depth: isoDepth(target.x + target.w, target.y + target.h),
+        };
+      }),
+    ];
+
+    this.veiled.clear();
+    for (const { image, box } of this.scenery) {
+      if (keep.some((k) => image.depth > k.depth && Phaser.Geom.Rectangle.Overlaps(box, k.box))) {
+        this.veiled.add(image);
+        image.setAlpha(OCCLUDER_ALPHA);
+      }
+    }
+  }
+
+  /** Fade whatever scenery the player has just walked behind, and restore it after. */
+  private revealHidden(delta: number): void {
+    if (!this.iso || this.scenery.length === 0) return;
+    const p = isoProject(this.player.x, this.player.y, this.iso);
+    const body = new Phaser.Geom.Rectangle(p.x - 18, p.y - 66, 36, 66);
+    const depth = isoDepth(this.player.x, this.player.y) + 1;
+    const ease = Math.min(1, delta / 120);
+    for (const { image, box } of this.scenery) {
+      const hiding =
+        this.veiled.has(image) ||
+        (image.depth > depth && Phaser.Geom.Rectangle.Overlaps(box, body));
+      const target = hiding ? OCCLUDER_ALPHA : 1;
+      if (image.alpha !== target) {
+        const next = image.alpha + (target - image.alpha) * ease;
+        image.setAlpha(Math.abs(next - target) < 0.02 ? target : next);
+      }
+    }
+  }
+
+  /**
+   * The way on.
+   *
+   * Every room has always had an exit — a lit threshold and a chevron — and it
+   * never did anything: the act ended with a button outside the world. Now the
+   * exit is a gate. Shut, it is solid and barred, and walking into it says
+   * why. Won, the bars go, the doorway fills with light, the beacon moves to
+   * it, and stepping through it is how you get to the next act.
+   */
+  private setUpGate(): void {
+    const exit = this.sceneData.exits[0];
+    if (!exit || !this.gate) return;
+    this.gateRect = exit;
+
+    const zone = this.add.zone(exit.x + exit.w / 2, exit.y + exit.h / 2, exit.w, exit.h);
+    this.physics.add.existing(zone, true);
+    this.gateCollider = this.physics.add.collider(this.player, zone, () => this.bumpGate());
+    this.gateCollider.active = !this.gate.open;
+
+    this.gateLayer = this.add.graphics().setDepth(isoDepth(exit.x + exit.w, exit.y + exit.h));
+    this.gateLabel = this.add
+      .text(0, 0, '', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        backgroundColor: '#0b0806cc',
+        padding: { x: 7, y: 3 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(9100);
+    this.drawGate(0);
+  }
+
+  /** React says the act was won (or a solved act was reopened): unbar it. */
+  private setGate(next: GameEvents['gate']): void {
+    const opening = next.open && this.gate !== null && !this.gate.open;
+    this.gate = next;
+    if (this.gateCollider) this.gateCollider.active = !next.open;
+    this.drawGate(this.time.now);
+    if (!opening || !this.gateRect) return;
+
+    // The unlock is its own moment, a beat after the verdict: a chime, a warm
+    // flash, and a line saying where it leads.
+    sfx.open();
+    this.cameras.main.flash(260, 217, 164, 65);
+    this.prompt
+      .setText(
+        next.last ? 'The way out is open' : `The gate is open — through it to ${next.leadsTo}`,
+      )
+      .setColor('#f6dca0')
+      .setPosition(this.scale.width / 2, this.scale.height - 44)
+      .setVisible(true);
+    this.promptUntil = this.time.now + 2800;
+    this.time.delayedCall(2800, () => {
+      if (this.sys.isActive()) this.prompt.setColor('#f4ecd8');
+    });
+  }
+
+  /**
+   * Two posts and a lintel across the doorway. Barred and padlocked while
+   * shut; filled with breathing light once open. Drawn from the exit rect
+   * itself, so it stands exactly where the collider is.
+   */
+  private drawGate(time: number): void {
+    const exit = this.gateRect;
+    const gate = this.gate;
+    const g = this.gateLayer;
+    if (!exit || !gate || !g) return;
+    g.clear();
+
+    // The doorway runs along the wall the exit sits against.
+    const along = exit.w >= exit.h;
+    const cx = exit.x + exit.w / 2;
+    const cy = exit.y + exit.h / 2;
+    const a = along ? this.toScreen(exit.x, cy) : this.toScreen(cx, exit.y);
+    const b = along ? this.toScreen(exit.x + exit.w, cy) : this.toScreen(cx, exit.y + exit.h);
+    const ta = { x: a.x, y: a.y - GATE_HEIGHT };
+    const tb = { x: b.x, y: b.y - GATE_HEIGHT };
+    const at = (t: number, lift: number) => ({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t - lift,
+    });
+
+    if (gate.open) {
+      const pulse = 0.5 + 0.5 * Math.sin(time / 300);
+      g.fillStyle(GOLD, 0.14 + pulse * 0.16);
+      g.fillPoints(
+        [a, b, tb, ta].map((p) => new Phaser.Geom.Point(p.x, p.y)),
+        true,
+      );
+    } else {
+      g.lineStyle(4, 0x22170f, 0.95);
+      for (let i = 1; i < GATE_BARS; i++) {
+        const foot = at(i / GATE_BARS, 0);
+        g.lineBetween(foot.x, foot.y, foot.x, foot.y - GATE_HEIGHT);
+      }
+      const railA = at(0, GATE_HEIGHT * 0.45);
+      const railB = at(1, GATE_HEIGHT * 0.45);
+      g.lineStyle(3, 0x22170f, 0.95);
+      g.lineBetween(railA.x, railA.y, railB.x, railB.y);
+      const lock = at(0.5, GATE_HEIGHT * 0.45);
+      g.fillStyle(RED, 0.95);
+      g.fillRoundedRect(lock.x - 7, lock.y - 5, 14, 12, 3);
+    }
+
+    g.lineStyle(7, 0x3a2715, 1);
+    g.lineBetween(a.x, a.y, ta.x, ta.y);
+    g.lineBetween(b.x, b.y, tb.x, tb.y);
+    g.lineStyle(6, gate.open ? GOLD : 0x3a2715, 1);
+    g.lineBetween(ta.x, ta.y - 3, tb.x, tb.y - 3);
+
+    this.gateLabel
+      ?.setText(gate.open ? (gate.last ? '→ the way out' : `→ ${gate.leadsTo}`) : 'locked')
+      .setColor(gate.open ? '#f6dca0' : '#c05746')
+      .setPosition((ta.x + tb.x) / 2, Math.min(ta.y, tb.y) - 10);
+  }
+
+  /** Walking into a shut gate says why it is shut, once in a while, not every frame. */
+  private bumpGate(): void {
+    if (this.time.now - this.gateBumped < 900) return;
+    this.gateBumped = this.time.now;
+    sfx.deny();
+    impact(this, 0.002, 90);
+    this.prompt
+      .setText('Locked — this act has to be won first')
+      .setColor('#e0b35e')
+      .setPosition(this.scale.width / 2, this.scale.height - 44)
+      .setVisible(true);
+    this.promptUntil = this.time.now + 1800;
+    this.time.delayedCall(1800, () => {
+      if (this.sys.isActive()) this.prompt.setColor('#f4ecd8');
+    });
+  }
+
+  private nearGate(): boolean {
+    const exit = this.gateRect;
+    if (!exit) return false;
+    return (
+      Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        exit.x + exit.w / 2,
+        exit.y + exit.h / 2,
+      ) <= GATE_NEAR
+    );
+  }
+
+  private inGate(): boolean {
+    const exit = this.gateRect;
+    if (!exit) return false;
+    const { x, y } = this.player;
+    return (
+      x >= exit.x - 6 && x <= exit.x + exit.w + 6 && y >= exit.y - 6 && y <= exit.y + exit.h + 6
+    );
+  }
+
+  /** Through the gate: the room goes dark, and React is told to bring on the next. */
+  private leaveThroughGate(): void {
+    this.exiting = true;
+    this.player.body.setVelocity(0, 0);
+    this.prompt.setVisible(false);
+    sfx.commit();
+    this.cameras.main.fadeOut(520, 11, 8, 6);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      gameBus.emit('exit', {});
+    });
+  }
+
+  /** Close enough to the guide to ask, measured on the plane like everything else. */
+  private isNearGuide(): boolean {
+    const spot = this.guide ? this.sceneData.npcSpots[this.guide] : undefined;
+    if (!spot) return false;
+    return (
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, spot.x, spot.y) <=
+      INTERACT_RADIUS + 40
+    );
   }
 
   /**
@@ -1565,12 +2974,18 @@ export class WorldScene extends Phaser.Scene {
 
     this.footprints.clear();
     for (const target of this.sceneData.interactables) {
-      drawFootprint(this.footprints, target, this.iso, target.id === this.nearby);
+      drawFootprint(
+        this.footprints,
+        target,
+        this.iso,
+        target.id === this.nearby || target.id === this.focus,
+      );
     }
     for (const plate of this.plates) {
       const active = plate.id === this.nearby;
-      plate.text.setColor(active ? '#f6dca0' : '#b9ad96');
-      plate.text.setBackgroundColor(active ? '#2a1c0edd' : '#0b080699');
+      const wanted = plate.id === this.focus;
+      plate.text.setColor(active ? '#f6dca0' : wanted ? '#d9a441' : '#b9ad96');
+      plate.text.setBackgroundColor(active || wanted ? '#2a1c0edd' : '#0b080699');
       plate.text.setScale(active ? 1.1 : 1);
     }
   }
@@ -1613,6 +3028,11 @@ export class WorldScene extends Phaser.Scene {
     const depth = isoDepth(this.player.x, this.player.y) + 1;
     if (this.walker) {
       const body = this.player.body;
+      // Tightens as the stride lengthens, which is what reads as weight.
+      const moving = Math.hypot(body.velocity.x, body.velocity.y) > 8;
+      this.playerShadow?.clear();
+      this.playerShadow?.fillStyle(0x000000, moving ? 0.34 : 0.28);
+      this.playerShadow?.fillEllipse(p.x, p.y, moving ? 26 : 30, moving ? 11 : 13);
       if (this.walker.step(delta, body.velocity.x, body.velocity.y, p, depth)) sfx.step();
       return;
     }
@@ -1620,15 +3040,76 @@ export class WorldScene extends Phaser.Scene {
     this.avatar.setDepth(depth);
   }
 
-  /** The cast breathe and shift even while the player is doing something else. */
+  /**
+   * Leave a puff behind, if the thing travelling is the kind that makes any.
+   * Spawned by ground covered rather than by time, so a wagon crawling the last
+   * few metres stops chuffing like one at speed.
+   */
+  private puffSteam(delta: number, actorAt: Point): void {
+    if (this.stage?.playback?.actor !== 'train') return;
+    const travelled = this.actorWas
+      ? Phaser.Math.Distance.BetweenPoints(this.actorWas, actorAt)
+      : 0;
+    this.actorWas = { ...actorAt };
+    const { along } = this.routeBasis();
+    const offset = chimneyOffset(along, 1.3);
+    this.steam?.update(delta, { x: actorAt.x + offset.x, y: actorAt.y + offset.y }, travelled);
+  }
+
+  /**
+   * The cast breathe and shift even while the player is doing something else —
+   * and they look up when you come near. A room of people who never register
+   * that you walked in is a room of furniture wearing hats.
+   */
   private stepExtras(delta: number): void {
-    for (const extra of this.extras) extra.actor.step(delta, 0, 0, extra.at, extra.depth);
+    for (const extra of this.extras) {
+      const dx = this.player.x - extra.spot.x;
+      const dy = this.player.y - extra.spot.y;
+      if (extra.actor) {
+        if (Math.hypot(dx, dy) < NOTICE_RADIUS) extra.actor.turn(dx, dy);
+        extra.actor.step(delta, 0, 0, extra.at, extra.depth);
+        continue;
+      }
+      if (!extra.image) continue;
+      // A painted plate cannot look up when you come near, so it breathes:
+      // enough movement that the room is not a photograph, not enough to
+      // pretend it is animation.
+      extra.phase = (extra.phase ?? 0) + delta / 1000;
+      extra.image.setY(extra.at.y + Math.sin(extra.phase * 1.5) * 1.4);
+    }
   }
 
   override update(_time: number, delta: number): void {
-    // Breathing comes before the mode check: the room should not freeze solid
-    // the moment the player opens a dial.
+    // Breathing and guttering come before the mode check: the room should not
+    // freeze solid the moment the player opens a dial.
     this.stepExtras(delta);
+    this.revealHidden(delta);
+    if (this.guideMark) {
+      this.guideMark.text.setY(this.guideMark.home + Math.sin(_time / 320) * 4);
+    }
+    for (const { pool, motes, seed } of this.pools) {
+      pool.level(flicker(_time, seed));
+      motes.draw(_time + seed * 90);
+    }
+    // Steam that has already left the chimney keeps rising on its own.
+    if (this.mode !== 'driving') this.steam?.update(delta, null, 0);
+    if (this.rig) {
+      // In front of the beam or behind it, measured where the player stands.
+      const front = this.rig.frontY();
+      const x = this.player.x;
+      this.rig.setDepth(
+        this.player.y > front ? isoDepth(x, front) - 1 : isoDepth(x, this.player.y) + 2,
+      );
+      // The load in hand breathes; nothing else here moves unless the sim does.
+      if (this.mode === 'needle') this.drawRig();
+    }
+    this.drawBeacon(_time);
+    if (this.gate?.open) this.drawGate(_time);
+    if (this.exiting) {
+      this.player.body.setVelocity(0, 0);
+      this.syncAvatar(delta);
+      return;
+    }
     if (this.mode === 'driving') {
       this.tickDrive(delta);
       return;
@@ -1656,6 +3137,16 @@ export class WorldScene extends Phaser.Scene {
     // Isometric input is rotated into world space, so the keys match the screen.
     const move = this.iso ? isoInputToWorld(ix, iy) : normalise(ix, iy);
     body.setVelocity(move.x * PLAYER_SPEED, move.y * PLAYER_SPEED);
+
+    // Walking into a wall should be something you feel. Without it the player
+    // presses the key harder, because nothing has told them they have arrived
+    // at the edge of the room.
+    const pressing = ix !== 0 || iy !== 0;
+    if (pressing && !body.blocked.none && _time - this.lastBump > 260) {
+      this.lastBump = _time;
+      sfx.bump();
+      impact(this, 0.0018, 90);
+    }
     // The camera stays where a run ended until the player walks away from it.
     if (this.cameraParked && (ix !== 0 || iy !== 0)) {
       this.cameras.main.startFollow(this.cameraTarget(), true, 0.12, 0.12);
@@ -1663,13 +3154,21 @@ export class WorldScene extends Phaser.Scene {
     }
     this.syncAvatar(delta);
 
+    if (this.gate?.open && this.inGate()) {
+      this.leaveThroughGate();
+      return;
+    }
+
     this.nearby = this.closestInteractable();
+    this.nearGuide = this.isNearGuide();
     this.lightProps();
     this.updatePrompt();
   }
 
   /** The ghost marker that follows you along the route, and the bottom line. */
   private updatePrompt(): void {
+    // A message with a hold on it outranks the ambient prompt until it expires.
+    if (this.time.now < this.promptUntil) return;
     const marker = this.binding('marker');
     if (marker && !this.planted) {
       const hit = this.valueAt(marker.path, { x: this.player.x, y: this.player.y });
@@ -1700,11 +3199,31 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private promptLine(): string | null {
+    if (this.nearGuide && this.guide) {
+      const name = this.cast.find((c) => c.id === this.guide)?.name ?? 'the guide';
+      return `E — ask ${name} a question`;
+    }
+
+    if (this.gate && this.gateRect && this.nearGate()) {
+      if (!this.gate.open) return 'The gate opens when this act is won';
+      return this.gate.last ? 'Walk through — the way out' : `Walk through to ${this.gate.leadsTo}`;
+    }
+
     const control = this.binding('control');
+    const board = this.binding('needle');
+    if (control && board && this.nearAnchor(board.at)) {
+      return `E — set ${board.prompt ?? 'the board'} · F — ${control.prompt ?? 'start the run'}`;
+    }
     if (control) {
       return this.ghosts.length > 0
         ? 'F — again · R clear the ghosts'
         : `F — ${control.prompt ?? 'let her go'}`;
+    }
+
+    // A live board: F goes again from the same start, the board is where the
+    // start changes.
+    if (this.liveNeedles().length > 0 && this.ghosts.length > 0) {
+      return 'F — again · E at the board to change the start · R clear the ghosts';
     }
 
     if (this.planted) {
@@ -1713,7 +3232,11 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const needle = this.binding('needle');
-    if (needle && this.nearAnchor(needle.at)) return `E — ${needle.prompt ?? 'the dial'}`;
+    if (needle && this.nearAnchor(needle.at)) {
+      return this.rig
+        ? `E — take hold of ${needle.prompt ?? 'the machine'} · F — release it as it is`
+        : `E — ${needle.prompt ?? 'the dial'}`;
+    }
 
     const aim = this.binding('aim');
     if (aim && this.nearAnchor(aim.at)) return `E — ${aim.prompt ?? 'take aim'}`;
@@ -1742,6 +3265,14 @@ export class WorldScene extends Phaser.Scene {
     }
     return best;
   }
+}
+
+/** `claimedClerkRate` → `claimed clerk rate`. A dial needs a name, not an identifier. */
+function humaniseParam(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[-_]/g, ' ')
+    .toLowerCase();
 }
 
 function normalise(x: number, y: number): { x: number; y: number } {
@@ -1813,6 +3344,13 @@ function midpoint(span: { from: number; to: number }): number {
 
 function format(value: number): string {
   return `${Math.round(value * 10) / 10}`;
+}
+
+/** A stable scramble of a tile's coordinates, so a floor looks the same every visit. */
+function hash2(x: number, y: number, seed: number): number {
+  let h = (seed ^ Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
 }
 
 /** Spread a Point into the (x, y) pair toScreen takes. */

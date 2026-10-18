@@ -1,0 +1,206 @@
+{
+  "id": "scene-workshop-1",
+  "projection": "isometric",
+  "width": 2400,
+  "height": 1000,
+  "blocked": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 2400,
+      "h": 40
+    },
+    {
+      "x": 0,
+      "y": 960,
+      "w": 2400,
+      "h": 40
+    },
+    {
+      "x": 0,
+      "y": 40,
+      "w": 40,
+      "h": 920
+    },
+    {
+      "x": 2360,
+      "y": 40,
+      "w": 40,
+      "h": 920
+    }
+  ],
+  "interactables": [
+    {
+      "id": "workbench",
+      "x": 1080,
+      "y": 150,
+      "w": 240,
+      "h": 100,
+      "height": 70,
+      "label": "Mistri's workbench",
+      "look": "teak workbench with chalk drawings of levers"
+    },
+    {
+      "id": "brazier",
+      "x": 1700,
+      "y": 170,
+      "w": 80,
+      "h": 80,
+      "height": 110,
+      "label": "Forge brazier",
+      "look": "iron brazier with coals"
+    },
+    {
+      "id": "oil-drums",
+      "x": 420,
+      "y": 760,
+      "w": 110,
+      "h": 110,
+      "height": 100,
+      "label": "Oil drums",
+      "look": "dented iron drums"
+    },
+    {
+      "id": "spare-crates",
+      "x": 2150,
+      "y": 760,
+      "w": 150,
+      "h": 120,
+      "height": 110,
+      "label": "Spare crates",
+      "look": "stacked teak crates with rope handles"
+    }
+  ],
+  "exits": [
+    {
+      "x": 2300,
+      "y": 420,
+      "w": 60,
+      "h": 160
+    }
+  ],
+  "spawn": {
+    "x": 1350,
+    "y": 820
+  },
+  "npcSpots": {
+    "mistri": {
+      "x": 880,
+      "y": 800
+    },
+    "munim": {
+      "x": 2200,
+      "y": 300
+    }
+  },
+  "dressing": [
+    {
+      "id": "d2",
+      "asset": "sack-grain",
+      "layer": "upright",
+      "x": 2040,
+      "y": 460,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d3",
+      "asset": "sack-grain",
+      "layer": "upright",
+      "x": 2070,
+      "y": 520,
+      "scale": 1.0,
+      "flip": true
+    },
+    {
+      "id": "d4",
+      "asset": "sack-grain",
+      "layer": "upright",
+      "x": 2030,
+      "y": 640,
+      "scale": 0.9,
+      "flip": false
+    },
+    {
+      "id": "d5",
+      "asset": "basket-cane",
+      "layer": "upright",
+      "x": 1020,
+      "y": 250,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d6",
+      "asset": "pot-water",
+      "layer": "upright",
+      "x": 1820,
+      "y": 280,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d7",
+      "asset": "cart-handbarrow",
+      "layer": "upright",
+      "x": 420,
+      "y": 330,
+      "scale": 0.95,
+      "flip": false
+    },
+    {
+      "id": "d8",
+      "asset": "awning-post",
+      "layer": "upright",
+      "x": 110,
+      "y": 120,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d9",
+      "asset": "awning-post",
+      "layer": "upright",
+      "x": 2290,
+      "y": 120,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d10",
+      "asset": "rock-cluster",
+      "layer": "upright",
+      "x": 2270,
+      "y": 920,
+      "scale": 0.8,
+      "flip": false
+    },
+    {
+      "id": "d11",
+      "asset": "grass-tuft",
+      "layer": "upright",
+      "x": 90,
+      "y": 920,
+      "scale": 1.0,
+      "flip": false
+    },
+    {
+      "id": "d12",
+      "asset": "sack-grain",
+      "layer": "upright",
+      "x": 2120,
+      "y": 700,
+      "scale": 0.9,
+      "flip": false
+    },
+    {
+      "id": "d13",
+      "asset": "milestone-pillar",
+      "layer": "upright",
+      "x": 300,
+      "y": 880,
+      "scale": 0.8,
+      "flip": false
+    }
+  ]
+}

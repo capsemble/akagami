@@ -1,0 +1,416 @@
+{
+  "id": "world-impossible-machine",
+  "title": "The Impossible Machine",
+  "logline": "Every problem has a mechanism. A crate too heavy to lift, a platform too high to reach, and a workshop full of iron and timber.",
+  "artStyle": "Sandstone and weathered teak, terracotta roof tiles, a forge glowing in the corner of an old mill yard.",
+  "status": "ready",
+  "cast": [
+    {
+      "id": "mistri",
+      "name": "Mistri Anaya",
+      "persona": "Master carpenter of the mill yard. Never lifts what she can lever.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/dalvi-neutral.svg",
+        "pleased": "/mock-art/portraits/dalvi-pleased.svg",
+        "worried": "/mock-art/portraits/dalvi-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-dalvi.svg"
+    },
+    {
+      "id": "munim",
+      "name": "Munim Lal",
+      "persona": "Keeps the ledger. Believes heavy things need strong men.",
+      "portraits": {
+        "neutral": "/mock-art/portraits/rane-neutral.svg",
+        "pleased": "/mock-art/portraits/rane-pleased.svg",
+        "worried": "/mock-art/portraits/rane-worried.svg"
+      },
+      "sprite": "/mock-art/sprite-rane.svg"
+    }
+  ],
+  "guide": "mistri",
+  "villain": "The weight itself",
+  "twist": "Every lift you made, you made with less strength than the load. The machine did not cheat: it traded distance for force.",
+  "acts": [
+    {
+      "id": "act1",
+      "conceptId": "lever-torque",
+      "title": "The First Lift",
+      "goal": "Ninety kilos of grain, a platform as high as your chest, and a plank. Set the fulcrum and the counterweight so the crate ends up on the platform.",
+      "verbs": [
+        "tune"
+      ],
+      "sceneId": "scene-workshop-1",
+      "prediction": {
+        "question": "You slide the fulcrum closer to the crate. What happens to the crate?",
+        "options": [
+          "Easier to lift, and it rises higher",
+          "Easier to lift, but it rises less",
+          "Harder to lift, but it rises higher"
+        ],
+        "correctIndex": 1
+      },
+      "explainAfter": "A lever turns about its fulcrum, and each weight turns it with a torque of m × g × d, where d is that weight's distance from the fulcrum. The machine moves if the counterweight's torque beats the crate's. But the plank swings as one piece: the ends travel in proportion to their arms, so a short crate arm that makes lifting easy also makes the crate rise less. Here the swing stops when the counterweight's end touches the floor, so the crate ends at H + d_crate × H / (distance to that end). Win on force, lose on distance.",
+      "mechanic": {
+        "type": "formula",
+        "spec": {
+          "constants": {
+            "g": 9.81,
+            "xWeight": 0.25,
+            "xCrate": 4.25,
+            "beamStart": 0,
+            "beamEnd": 4.5,
+            "crateMass": 90,
+            "fulcrumHeight": 0.5,
+            "platformH": 0.8
+          },
+          "state": {
+            "dCrate": "xCrate - pivot",
+            "dWeight": "pivot - xWeight",
+            "sMin": "0 - fulcrumHeight / (pivot - beamStart)",
+            "sMax": "fulcrumHeight / (beamEnd - pivot)",
+            "alpha": "g * (crateMass * dCrate - counterweight * dWeight) / (counterweight * dWeight * dWeight + crateMass * dCrate * dCrate)",
+            "s": "sMax",
+            "v": "0"
+          },
+          "step": {
+            "v": "v + alpha * dt",
+            "s": "(s + v * dt) * ((s + v * dt) < sMax) * ((s + v * dt) > sMin) + sMax * ((s + v * dt) >= sMax) + sMin * ((s + v * dt) <= sMin)"
+          },
+          "outputs": {
+            "crateTorque": "crateMass * g * dCrate",
+            "weightTorque": "counterweight * g * dWeight",
+            "netTorque": "weightTorque - crateTorque",
+            "crateHeight": "fulcrumHeight - dCrate * s"
+          },
+          "win": "netTorque > 0 && crateHeight >= platformH - 0.0005",
+          "dt": 0.02,
+          "maxTime": 40,
+          "until": "s <= sMin || (s >= sMax && v > 0)"
+        },
+        "params": [
+          {
+            "name": "pivot",
+            "min": 1.5,
+            "max": 3.7,
+            "default": 3.3,
+            "solution": 2.5,
+            "when": "before"
+          },
+          {
+            "name": "counterweight",
+            "min": 20,
+            "max": 80,
+            "default": 40,
+            "solution": 80,
+            "when": "before"
+          }
+        ]
+      },
+      "stage": {
+        "bindings": [
+          {
+            "kind": "needle",
+            "param": "pivot",
+            "at": {
+              "x": 1200,
+              "y": 606
+            },
+            "prompt": "the lever",
+            "label": "fulcrum — position",
+            "unit": "m"
+          },
+          {
+            "kind": "needle",
+            "param": "counterweight",
+            "at": {
+              "x": 1200,
+              "y": 606
+            },
+            "prompt": "the lever",
+            "label": "counterweight — mass",
+            "unit": "kg"
+          }
+        ],
+        "balance": {
+          "beam": {
+            "from": {
+              "x": 700,
+              "y": 520
+            },
+            "to": {
+              "x": 1700,
+              "y": 520
+            },
+            "fromValue": 0,
+            "toValue": 4.5,
+            "unit": "m"
+          },
+          "pivot": "pivot",
+          "pivotLabel": "fulcrum",
+          "height": "fulcrumHeight",
+          "loads": [
+            {
+              "label": "grain crate",
+              "mass": "crateMass",
+              "at": "xCrate",
+              "size": 0.5
+            },
+            {
+              "label": "counterweight",
+              "mass": "counterweight",
+              "at": "xWeight"
+            }
+          ],
+          "tilt": "s",
+          "tiltUnit": "sin",
+          "target": {
+            "cargo": "crateMass",
+            "output": "crateHeight",
+            "height": "platformH",
+            "from": 4.58,
+            "to": 5.75,
+            "label": "delivery platform"
+          },
+          "showTorque": true,
+          "massUnit": "kg"
+        },
+        "readables": {
+          "workbench": {
+            "speaker": "Mistri Anaya",
+            "lines": [
+              "Torque is force times the distance from the fulcrum: τ = m × g × d.",
+              "Whichever side turns harder wins. Equal torques, and nothing moves at all.",
+              "But a lever never gives something for nothing. Win on force, lose on distance."
+            ]
+          }
+        },
+        "readout": {
+          "output": "crateHeight",
+          "label": "crate rose to",
+          "unit": " m"
+        }
+      },
+      "steps": [
+        "Walk up to the lever — WASD or the arrow keys.",
+        "Press E to take hold. Up and down pick what to change; left and right move it.",
+        "Press E (or F) to release the machine. The crate has to end up on the platform.",
+        "R puts everything back where it started."
+      ],
+      "dialogue": [
+        {
+          "speaker": "Mistri Anaya",
+          "mood": "neutral",
+          "line": "The cart men left it on the floor. Ninety kilos. The platform is eighty centimetres up."
+        },
+        {
+          "speaker": "Munim Lal",
+          "mood": "worried",
+          "line": "Two of us cannot lift that. Wait for the morning crew."
+        },
+        {
+          "speaker": "Mistri Anaya",
+          "mood": "pleased",
+          "line": "We have a plank, a fulcrum and iron. That is a machine. Make it work."
+        }
+      ],
+      "beat": {
+        "won": "On the platform. Not one of us lifted a thing.",
+        "lost": "Watch where it stopped. The plank told you why.",
+        "speaker": "Mistri Anaya"
+      }
+    },
+    {
+      "id": "act2",
+      "conceptId": "lever-tradeoff",
+      "title": "The Upper Loft",
+      "goal": "A heavier crate, a loft a full metre up, and the same iron. Now you can also build the fulcrum higher.",
+      "verbs": [
+        "tune"
+      ],
+      "sceneId": "scene-workshop-2",
+      "explainAfter": "Raising the fulcrum raises the whole swing: the crate starts higher and the plank turns further before the counterweight's end reaches the floor. That buys height without moving the fulcrum away from the crate, so the counterweight keeps its advantage. Torque still decides whether it moves at all; geometry decides how far.",
+      "mechanic": {
+        "type": "formula",
+        "spec": {
+          "constants": {
+            "g": 9.81,
+            "xWeight": 0.25,
+            "xCrate": 4.25,
+            "beamStart": 0,
+            "beamEnd": 4.5,
+            "crateMass": 110,
+            "platformH": 1.0
+          },
+          "state": {
+            "dCrate": "xCrate - pivot",
+            "dWeight": "pivot - xWeight",
+            "sMin": "0 - fulcrumHeight / (pivot - beamStart)",
+            "sMax": "fulcrumHeight / (beamEnd - pivot)",
+            "alpha": "g * (crateMass * dCrate - counterweight * dWeight) / (counterweight * dWeight * dWeight + crateMass * dCrate * dCrate)",
+            "s": "sMax",
+            "v": "0"
+          },
+          "step": {
+            "v": "v + alpha * dt",
+            "s": "(s + v * dt) * ((s + v * dt) < sMax) * ((s + v * dt) > sMin) + sMax * ((s + v * dt) >= sMax) + sMin * ((s + v * dt) <= sMin)"
+          },
+          "outputs": {
+            "crateTorque": "crateMass * g * dCrate",
+            "weightTorque": "counterweight * g * dWeight",
+            "netTorque": "weightTorque - crateTorque",
+            "crateHeight": "fulcrumHeight - dCrate * s"
+          },
+          "win": "netTorque > 0 && crateHeight >= platformH - 0.0005",
+          "dt": 0.02,
+          "maxTime": 40,
+          "until": "s <= sMin || (s >= sMax && v > 0)"
+        },
+        "params": [
+          {
+            "name": "pivot",
+            "min": 1.5,
+            "max": 3.7,
+            "default": 3.3,
+            "solution": 2.8,
+            "when": "before"
+          },
+          {
+            "name": "counterweight",
+            "min": 20,
+            "max": 80,
+            "default": 50,
+            "solution": 80,
+            "when": "before"
+          },
+          {
+            "name": "fulcrumHeight",
+            "min": 0.4,
+            "max": 0.8,
+            "default": 0.5,
+            "solution": 0.7,
+            "when": "before"
+          }
+        ]
+      },
+      "stage": {
+        "bindings": [
+          {
+            "kind": "needle",
+            "param": "pivot",
+            "at": {
+              "x": 1200,
+              "y": 606
+            },
+            "prompt": "the lever",
+            "label": "fulcrum — position",
+            "unit": "m"
+          },
+          {
+            "kind": "needle",
+            "param": "counterweight",
+            "at": {
+              "x": 1200,
+              "y": 606
+            },
+            "prompt": "the lever",
+            "label": "counterweight — mass",
+            "unit": "kg"
+          },
+          {
+            "kind": "needle",
+            "param": "fulcrumHeight",
+            "at": {
+              "x": 1200,
+              "y": 606
+            },
+            "prompt": "the lever",
+            "label": "fulcrum — height",
+            "unit": "m"
+          }
+        ],
+        "balance": {
+          "beam": {
+            "from": {
+              "x": 700,
+              "y": 520
+            },
+            "to": {
+              "x": 1700,
+              "y": 520
+            },
+            "fromValue": 0,
+            "toValue": 4.5,
+            "unit": "m"
+          },
+          "pivot": "pivot",
+          "pivotLabel": "fulcrum",
+          "height": "fulcrumHeight",
+          "loads": [
+            {
+              "label": "grain crate",
+              "mass": "crateMass",
+              "at": "xCrate",
+              "size": 0.5
+            },
+            {
+              "label": "counterweight",
+              "mass": "counterweight",
+              "at": "xWeight"
+            }
+          ],
+          "tilt": "s",
+          "tiltUnit": "sin",
+          "target": {
+            "cargo": "crateMass",
+            "output": "crateHeight",
+            "height": "platformH",
+            "from": 4.58,
+            "to": 5.75,
+            "label": "delivery platform"
+          },
+          "showTorque": true,
+          "massUnit": "kg"
+        },
+        "readables": {
+          "workbench": {
+            "speaker": "Mistri Anaya",
+            "lines": [
+              "Torque is force times the distance from the fulcrum: τ = m × g × d.",
+              "Whichever side turns harder wins. Equal torques, and nothing moves at all.",
+              "But a lever never gives something for nothing. Win on force, lose on distance."
+            ]
+          }
+        },
+        "readout": {
+          "output": "crateHeight",
+          "label": "crate rose to",
+          "unit": " m"
+        }
+      },
+      "steps": [
+        "Walk up to the lever — WASD or the arrow keys.",
+        "Press E to take hold. Up and down pick what to change; left and right move it.",
+        "Press E (or F) to release the machine. The crate has to end up on the platform.",
+        "R puts everything back where it started."
+      ],
+      "dialogue": [
+        {
+          "speaker": "Munim Lal",
+          "mood": "neutral",
+          "line": "This one is a hundred and ten. And it goes to the loft. A metre."
+        },
+        {
+          "speaker": "Mistri Anaya",
+          "mood": "neutral",
+          "line": "Same iron as before. Eighty kilos, no more. Think before you slide anything."
+        }
+      ],
+      "beat": {
+        "won": "A metre, with eighty kilos of iron. Now you understand the plank.",
+        "lost": "Torque or height — which one failed you? The numbers say.",
+        "speaker": "Mistri Anaya"
+      }
+    }
+  ]
+}

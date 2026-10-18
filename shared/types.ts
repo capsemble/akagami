@@ -43,6 +43,29 @@ export interface World {
   twist?: string;
   /** Cached three.js diorama shown behind the world-forming screen. */
   dioramaUrl?: string;
+  /**
+   * The style plate the art director painted before anything else, and the one
+   * asset that is about the world rather than a piece of it. It already sits on
+   * disk under the chapter's hash; it simply had nowhere to go in the runtime
+   * contract, so the title card had nothing to be a title card *of*.
+   */
+  styleUrl?: string;
+  /**
+   * The cast member the player can stop and ask anything. Picked from the cast
+   * rather than invented, so the person you ask is someone the story already
+   * knows — and never one written to personify a misconception, because the
+   * guide is the one character whose job is to be right.
+   */
+  guide?: string;
+  /** The player's painted walk sheet, if the art director made one. See WorldArt. */
+  playerSheet?: string;
+  /**
+   * Acts the design wrote that the runtime cannot finish — a mechanic with no
+   * player-facing completion path (see shared/mechanics.ts). They are left
+   * out of `acts` rather than shipped as a room whose gate never opens, and
+   * named here so the player is told, not silently handed a shorter story.
+   */
+  omitted?: { actId: string; title: string; reason: string }[];
 }
 
 export interface Character {
@@ -54,7 +77,15 @@ export interface Character {
 }
 
 export type Verb =
-  'drive' | 'aim_launch' | 'plant_marker' | 'interrogate' | 'deduction' | 'intercept' | 'tune';
+  | 'drive'
+  | 'aim_launch'
+  | 'plant_marker'
+  | 'interrogate'
+  | 'deduction'
+  | 'intercept'
+  | 'tune'
+  /** Put cards in order: the verb of a sequence act. */
+  | 'arrange';
 
 export interface Prediction {
   question: string;
@@ -66,6 +97,12 @@ export interface Act {
   id: string;
   conceptId: string;
   title: string;
+  /**
+   * The one sentence the act exists to make the player believe: the concept's
+   * key rule, carried through from the curriculum. Absent on fixture worlds
+   * that predate it.
+   */
+  objective?: string;
   goal: string;
   verbs: Verb[];
   sceneId: string;
@@ -75,8 +112,24 @@ export interface Act {
   mechanic?: Mechanic;
   /** How the mechanic is staged in the scene. Absent falls back to sliders. */
   stage?: ActStage;
+  /**
+   * What to actually do, in order, in plain words. Three or four short steps.
+   *
+   * `goal` is the story reason and it is written to be read once. It is not an
+   * instruction, and on its own it left players standing in a room they could
+   * walk around with no idea what the game wanted — which is a failure of the
+   * game, not of the player. These are the keys to press and the things to
+   * walk to, and they stay on screen for as long as the act does.
+   */
+  steps?: string[];
   /** Played on entering the act. At most 6 lines, each at most 25 words. */
   dialogue?: DialogueLine[];
+  /**
+   * The picture the act is built on, and where it stops being true. Written
+   * and validated at design time (an analogy with no edge is rejected), and
+   * shown once the act is won.
+   */
+  analogy?: Analogy;
   /**
    * What the cast says the instant it lands or doesn't. The moment you win is
    * the worst possible time to be taught at — it wants a reaction. The physics
@@ -98,6 +151,38 @@ export interface Interactable extends Rect {
   label?: string;
   /** What it is made of or looks like. Picks the palette. */
   look?: string;
+  /**
+   * The painted sprite for this prop, when the art director reached it. The
+   * rect is still the truth — art is laid on the footprint the mapper placed,
+   * never the other way round — so a world with no art plays identically.
+   */
+  imageUrl?: string;
+}
+
+/** How a decoration is drawn: flat on the floor, or standing on it. */
+export type DressingLayer = 'ground' | 'upright';
+
+/**
+ * One placed piece of scenery, and part of the wire contract because the
+ * server decides where it goes — the client must never invent geometry the
+ * fixture does not carry.
+ *
+ * Purely visual. A decoration produces no collider and no hit area, so
+ * `walkable()` gives the same answer for a dressed room as for a bare one.
+ * See shared/dressing.ts for the catalogue and the placement.
+ */
+export interface Decoration {
+  /** Stable within a scene, so a texture key and a test both have a handle. */
+  id: string;
+  /** Which entry in the dressing catalogue, and the file stem it loads. */
+  asset: string;
+  layer: DressingLayer;
+  /** Ground-contact point on the world plane — the feet, not the centre. */
+  x: number;
+  y: number;
+  /** Multiplies the asset's own natural size. */
+  scale: number;
+  flip: boolean;
 }
 
 export interface Scene {
@@ -119,6 +204,12 @@ export interface Scene {
   exits: Rect[];
   spawn: Point;
   npcSpots: Record<string, Point>;
+  /**
+   * Scenery. Purely visual: a decoration has no collider and no hit area, so a
+   * dressed room and a bare one play identically. Absent means an undressed
+   * room, which is what every scene was before `dressScene` existed.
+   */
+  dressing?: Decoration[];
 }
 
 export interface RagParams {
@@ -142,6 +233,24 @@ export interface RagRunResponse {
   judge: { correct: boolean; missingFacts: string[]; unsupportedClaims: string[] };
   latencyMs: number;
   cached: boolean;
+  /**
+   * Which canned row answered, while retrieval is a fixture table. `default`
+   * is the catch-all for settings the table has no row for, so a correct
+   * judgement from it says nothing about what the player chose and never
+   * completes an act.
+   */
+  fixtureKey?: string;
+  /** True when this run really retrieved and really asked a model. */
+  live?: boolean;
+  /** Which models did it, for the panel to say so. */
+  models?: { embed: string; answer: string; judge: string };
+  /**
+   * Whether this run shows the act's lesson learned, measured on the real
+   * retrieval: the fact intact in one chunk, the gold scroll in a lean
+   * satchel, every claim supported. The answer being right is necessary
+   * but not enough — a strong model can stitch a torn fact back together.
+   */
+  lesson?: { passed: boolean; checks: { label: string; ok: boolean }[] };
 }
 
 export interface NpcTurn {
@@ -150,6 +259,12 @@ export interface NpcTurn {
   understanding: number;
   misconception: string;
   unlock: boolean;
+  /**
+   * True when no model answered and this is a scripted pointer instead. Said
+   * out loud on screen: a canned line passed off as a considered answer is the
+   * same lie as a substituted world.
+   */
+  offline?: boolean;
 }
 
 export interface TeachingMove {
@@ -157,7 +272,32 @@ export interface TeachingMove {
   speaker: string;
   message: string;
   check?: { question: string; options: string[]; correctIndex: number; why: string };
+  /** The guide's cast id, so the card can show their portrait. */
+  speakerId?: string;
+  /**
+   * The wrong idea the attempt points to, verbatim from the curriculum's list —
+   * the model chooses one, it never writes its own.
+   */
+  misconception?: string;
+  /** What in the attempt points to it, in the game's own numbers. */
+  because?: string;
+  /**
+   * The cast member written to personify that misconception, walking in to
+   * cheer the mistake on. Present only when one was written for it.
+   */
+  voice?: { characterId: string; speaker: string; line: string };
+  /** True when no model answered and this move was built from the act's own data. */
+  offline?: boolean;
 }
+
+/**
+ * One failed attempt, as the player made it. The server re-judges it from the
+ * act's own data rather than trusting a verdict sent with it.
+ */
+export type AttemptReport =
+  | { kind: 'formula'; settings: Record<string, number>; outputs: Record<string, number> }
+  | { kind: 'sequence'; order: string[] }
+  | { kind: 'evidence'; pins: Record<string, string> };
 
 export interface AgentEvent {
   ts: number;
@@ -173,7 +313,12 @@ export interface AgentEvent {
 // Everything above this line is the runtime contract and is unchanged.
 // ---------------------------------------------------------------------------
 
-export type ConceptKind = 'formula' | 'ai-system' | 'qualitative';
+/**
+ * How a concept can be played. `qualitative` is still a classification the
+ * curriculum may make, but no mechanic plays it yet — see shared/mechanics.ts
+ * for which kinds the runtime can actually finish.
+ */
+export type ConceptKind = 'formula' | 'sequence' | 'evidence' | 'ai-system' | 'qualitative';
 
 export interface Concept {
   id: string;
@@ -311,13 +456,163 @@ export interface ParamSpec {
   default: number;
   /** A value that wins. The validator checks this really does. */
   solution: number;
+  /**
+   * When the player sets it. A `before` param is a property of the situation
+   * — a mass, a length, a claimed figure — chosen and then lived with. A
+   * `during` param is a control — a pull, a tension, a throttle — that the
+   * player keeps hold of while the run plays and can correct as it goes.
+   *
+   * The maths cannot tell them apart: mass sits in the step equations exactly
+   * where force does. Absent means the mapper guesses from the name.
+   */
+  when?: 'before' | 'during';
 }
 
 export type RagAct = 'chunking' | 'embeddings' | 'topk' | 'grounding' | 'injection';
 
+/** One card in a sequence act: a step, a stage, an event. */
+export interface SequenceItem {
+  id: string;
+  /** What the card says, short enough to read at a glance. */
+  label: string;
+  /** One line of detail the player can read before placing it. */
+  detail?: string;
+}
+
+/**
+ * One ordering fact the act is built on: `before` has to come before `after`.
+ * `why` is what the player is told when they break it, so it carries the
+ * reason, not a restatement of the order.
+ */
+export interface SequenceRule {
+  before: string;
+  after: string;
+  why: string;
+  /**
+   * The passages of the notes this ordering rests on, copied verbatim. Checked
+   * against the source text (shared/grounding.ts) and then by the evidence
+   * judge. Optional only so worlds built before grounding still load; a
+   * generated rule without it is rejected.
+   */
+  evidence?: string[];
+}
+
+/** What the evidence judge said about one statement an act makes. */
+export interface GroundingVerdict {
+  /** Which statement, e.g. "rule:2", "card:transcribe", "pair:c1:e3", "shows:e3". */
+  ref: string;
+  /**
+   * `supported`: the cited text states or directly implies it.
+   * `contradicted`: the text says otherwise.
+   * `insufficient`: the text does not say — true in the world or not.
+   */
+  verdict: 'supported' | 'contradicted' | 'insufficient';
+  reason: string;
+}
+
+/**
+ * The audit trail of an act's model-based grounding check, kept with the act.
+ * A model's reading, not a proof: it is what the act passed, recorded so a
+ * person can check the judge as well as the act.
+ */
+export interface GroundingRecord {
+  /** Model id that judged. */
+  judge: string;
+  checkedAt: string;
+  verdicts: GroundingVerdict[];
+}
+
+/**
+ * Put things in the order the concept demands: the stages of a process, the
+ * links of a causal chain, the steps of a procedure.
+ *
+ * Judged by `rules`, not by `solution`: any order that breaks no rule wins, so
+ * two events with no ordering between them can go either way. `solution` is
+ * one winning order, kept so the validator can prove the act is finishable.
+ */
+export interface SequenceMechanic {
+  type: 'sequence';
+  /** The instruction on the board, e.g. "Order the stages of mitosis". */
+  prompt: string;
+  items: SequenceItem[];
+  rules: SequenceRule[];
+  /** The order the cards start in. Must break at least one rule. */
+  initial: string[];
+  /** One order that breaks no rule. */
+  solution: string[];
+  grounding?: GroundingRecord;
+}
+
+/** A statement the player has to back with a document. */
+export interface EvidenceClaim {
+  id: string;
+  text: string;
+}
+
+/** A document on the table: a passage of the notes, verbatim. */
+export interface EvidenceItem {
+  id: string;
+  /** What the document is called in the world: "Treaty of London, 1839". */
+  title: string;
+  /** Copied verbatim from the notes. This is the citation. */
+  excerpt: string;
+  /**
+   * What this passage establishes, in one sentence. Shown when the player pins
+   * it to a claim it does not back, so the feedback explains the evidence
+   * without naming the claim it belongs to.
+   */
+  shows: string;
+}
+
+/** `evidence` backs `claim`, and `why` says how. */
+export interface EvidenceLink {
+  claim: string;
+  evidence: string;
+  why: string;
+}
+
+/**
+ * Connect each claim to the document that proves it. Documents that back no
+ * claim are decoys, and pinning one anywhere is wrong.
+ *
+ * Won when every claim has at least one document pinned to it and every pin
+ * is a declared link. The links are the only judge: the runtime never asks a
+ * model whether a pairing is right.
+ */
+export interface EvidenceMechanic {
+  type: 'evidence';
+  /** The instruction on the board. */
+  prompt: string;
+  claims: EvidenceClaim[];
+  evidence: EvidenceItem[];
+  links: EvidenceLink[];
+  grounding?: GroundingRecord;
+}
+
 export type Mechanic =
   | { type: 'formula'; spec: SimSpec; params: ParamSpec[] }
-  | { type: 'ai-system'; ragAct: RagAct; question: string; goldFact: string }
+  | {
+      type: 'ai-system';
+      ragAct: RagAct;
+      question: string;
+      goldFact: string;
+      /**
+       * Where answers come from. `oracle` is the live pipeline over the Old
+       * Library's scrolls (mocks/oracle-library.md): Gemini embeddings,
+       * retrieval, a Gemini answer and a judge. `fixture` is the canned table
+       * it falls back to. Absent means a corpus built from the chapter, which
+       * does not exist yet, so such an act cannot be finished.
+       */
+      corpus?: 'fixture' | 'oracle';
+      /**
+       * The satchel the act opens with: the broken setting its lesson is
+       * about. It is checked to lose, so the act cannot be won by asking
+       * before changing anything.
+       */
+      start?: RagParams;
+    }
+  | SequenceMechanic
+  | EvidenceMechanic
   | { type: 'qualitative'; rubric: { mustShow: string[]; misconceptions: string[] } };
 
 export interface ActSpec {
@@ -339,6 +634,22 @@ export interface ActSpec {
 export interface WorldArt {
   /** The plate every other asset was drawn against. */
   styleUrl?: string;
+  /**
+   * act id → an empty painted floor for that act's room.
+   *
+   * Optional, and decoration only: the plate is laid *under* the colliders,
+   * the paths and the win band, all of which come from the mapper and the sim
+   * spec. A room with no painting draws its own floor, exactly as every
+   * generated room has until now.
+   */
+  rooms?: Record<string, string>;
+  /**
+   * The player, as a walk sheet: one image, three rows (facing the viewer,
+   * facing away, in profile) of four poses (standing, then a stride). Painted
+   * as a single picture so all twelve poses are the same person — painted
+   * separately, a character drifts between frames. Absent, the player is drawn.
+   */
+  playerSheet?: string;
   /** cast id → url. A missing entry means the placeholder is used. */
   portraits: Record<string, string>;
   sprites: Record<string, string>;
@@ -399,6 +710,15 @@ export type ParamBinding =
       band?: { from: number; to: number; label?: string };
       unit?: string;
       prompt?: string;
+      /** What this dial is called on the board, when the param name says too little ("x1"). */
+      label?: string;
+      /**
+       * Stays in the player's hand while the run plays. The physics is then
+       * stepped frame by frame with wherever the needle is, so the act is
+       * driven rather than set-and-watched. Set before the run and left alone,
+       * a live needle plays exactly the run the validator scored.
+       */
+      live?: boolean;
     }
   /**
    * A param the player holds down *during* the run rather than setting before
@@ -430,7 +750,18 @@ export type ParamBinding =
  * scene and the curve in the panel are driven by the same numbers.
  */
 export interface Playback {
-  actor: 'train' | 'satchel';
+  /**
+   * What travels. `body` is the neutral one — a crate, a cage, a load — for
+   * everything that moves without being a locomotive or a thrown bag.
+   */
+  actor: 'train' | 'satchel' | 'body';
+  /**
+   * How the route is drawn. Rails are for things that run on rails; a coal
+   * cage on a cable and a lorry on a road are not, and permanent way laid
+   * through a weighbridge office is a worse lie than a plain lane.
+   * Absent means rails for a train, a lane for anything else.
+   */
+  track?: 'rails' | 'lane';
   /**
    * Someone else moving on the same path, on their own clock. A rival turns a
    * target into a race: the concept stops being the subject and becomes the
@@ -448,12 +779,102 @@ export interface Playback {
   /** Seconds the replay should take, regardless of simulated time. Ignored on a
    *  live act, which takes exactly as long as it takes. */
   seconds?: number;
+  /**
+   * The run goes straight up from `path.from` instead of across the floor: a
+   * lift, a hoist, a rocket. `along` is then the height, and `path.toValue`
+   * the top of the shaft. `path.to` is ignored.
+   */
+  shaft?: boolean;
+  /** A shaft gone down rather than up — a cage lowered into a pit: `along` is the depth. */
+  descends?: boolean;
+}
+
+/**
+ * One thing sitting on a balance. Every field is an expression over the sim's
+ * constants and params, so a load the player slides is a load that moves.
+ */
+export interface BalanceLoad {
+  label?: string;
+  /** Mass, in the sim's own units. Absent on a `moment`. */
+  mass?: string;
+  /** Position along the beam, sim units. */
+  at: string;
+  /** Position across the deck, for a two-dimensional layout. */
+  atY?: string;
+  /** Footprint side in sim units, for a load whose size is known. Absent: sized by mass. */
+  size?: number;
+  /** `mass` is a force in newtons — a bolt pressing, a bag hanging — not kilograms. */
+  force?: boolean;
+  /**
+   * A turning effect with no mass or arm of its own — "the front roller pushes
+   * 48 N·m" — drawn as a fixed weight at the end it acts on. Never invented:
+   * it is the spec's own constant terms in the torque it judges.
+   */
+  moment?: string;
+}
+
+/**
+ * A beam on a support, or a deck on a pier, and what is sitting on it.
+ *
+ * Travel is the wrong picture for balance: a centre of mass does not go
+ * anywhere. This is staged as the thing itself — loads where the sim says they
+ * are, a support where the sim says it is, the centre of mass computed from the
+ * same masses and positions, and a tilt read off the run. Nothing on it moves
+ * unless a number in the simulation does.
+ */
+export interface Balance {
+  /** The beam's line across the world plane, and its two ends in sim units. */
+  beam: WorldPath;
+  /** Where the support stands, in sim units along the beam. An expression. */
+  pivot: string;
+  /** What the support is called, e.g. 'knife-edge', 'axle', 'pier'. */
+  pivotLabel?: string;
+  loads: BalanceLoad[];
+  /** Per-sample tilt. Positive drops the `toValue` end. Absent: it never tilts. */
+  tilt?: string;
+  /** `sin` means the tilt expression is sin θ itself: the expression language has no trig. */
+  tiltUnit?: 'deg' | 'rad' | 'sin';
+  /**
+   * Height of the beam's underside at the support, in the beam's own units. Set,
+   * the drawn beam meets the floor exactly where the sim's geometry says it
+   * does. Absent, a fixed drawing height is used and the floor is only a stop.
+   */
+  height?: string;
+  /**
+   * Somewhere one load has to end up: a raised platform beside the beam. The
+   * win is still the spec's `win`; this only says what to draw and what to
+   * explain — which output is the load's height, and how high is high enough.
+   */
+  target?: {
+    /** The load (by its `mass` expression) that has to arrive. */
+    cargo: string;
+    /** Output holding the cargo's final height, sim units. */
+    output: string;
+    /** The platform's height, an expression. */
+    height: string;
+    /** Where the platform stands along the beam's line, sim units. */
+    from: number;
+    to: number;
+    label?: string;
+  };
+  /** Label each load with its arm and torque, m·g·d. `g` is the spec's constant. */
+  showTorque?: boolean;
+  /** Centre of mass along the beam. Absent: Σmx / Σm over the loads that have a mass. */
+  com?: string;
+  /**
+   * The second axis, for a deck rather than a beam. `beam` then runs along
+   * world x and this along world y, on the same scale.
+   */
+  across?: { fromValue: number; toValue: number; pivot: string; com?: string };
+  massUnit?: string;
 }
 
 export interface ActStage {
   bindings: ParamBinding[];
   /** Absent means the verdict is immediate: nothing travels. */
   playback?: Playback;
+  /** The act is a balance: draw the beam, its loads and its support. */
+  balance?: Balance;
   /** E on one of these shows what it says instead of playing the act. */
   readables?: Record<string, { speaker: string; lines: string[] }>;
   /**

@@ -24,12 +24,21 @@ export interface GameEvents {
   /** The run has finished and the verdict can land. A live act reports its own
    *  outputs, because React never simulated it — the player did. */
   played: { won: boolean; outputs?: Record<string, number> };
+  /** E beside the guide: open the conversation. */
+  ask: { characterId: string };
+  /** The player has walked through the open gate. Take them to what is beyond it. */
+  exit: Record<string, never>;
 
   // --- React → Phaser ---
   /** A finished run, to act out in the scene. */
   outcome: { won: boolean; values: Record<string, number>; samples: SimSample[] };
   /** Back to unsolved: clear the marker, the trail, the needle. */
   reset: Record<string, never>;
+  /**
+   * The way out of the room. Shut until the act is won; then it opens onto the
+   * next act, or onto the end of the story from the last one.
+   */
+  gate: { open: boolean; leadsTo: string; last: boolean };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

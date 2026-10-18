@@ -1,25 +1,84 @@
 /**
- * Thin wrapper around @google/genai. Everything that talks to Gemini goes
- * through here so retries, usage counters and the daily cap are in one place.
+ * The model layer. Everything that talks to a model goes through here, so
+ * retries, usage counters and the daily cap live in one place.
  *
- * The API key is read from the environment on the server only and is never
- * sent to the client.
+ * Two providers sit underneath. **Google** talks to @google/genai directly.
+ * **FastRouter** is one OpenAI-compatible endpoint in front of a couple of
+ * hundred models from every lab, and it is here because the Google keys this
+ * project started on ran out of free-tier quota — a chapter that cannot be
+ * turned into a world is not a demo. Which one is used is decided once, at the
+ * bottom of this comment's worth of config, and nothing above it knows or cares.
+ *
+ * The file is still called gemini.ts because four modules import it by that
+ * name and a rename is churn, not progress.
+ *
+ * API keys are read from the environment on the server only and never sent to
+ * the client.
  */
 import { GoogleGenAI } from '@google/genai';
 import type { Part, Schema } from '@google/genai';
 import type { AgentEvent } from '@chapter-quest/shared';
+import * as fastrouter from './providers/fastrouter.js';
+
+export type Provider = 'google' | 'fastrouter';
 
 /**
- * Model IDs come from env so we can swap them without a deploy.
- * TODO: verify these IDs in AI Studio before the demo — a wrong ID fails at
- * call time with a 404, not at startup.
+ * Which backend the models come from.
+ *
+ * Set MODEL_PROVIDER to force it. Otherwise: a FastRouter key means FastRouter,
+ * because nobody sets that key by accident, and the Google path only works
+ * while that project still has quota.
  */
+export const PROVIDER: Provider =
+  (process.env.MODEL_PROVIDER as Provider | undefined) ??
+  (fastrouter.hasKey() ? 'fastrouter' : 'google');
+
+/**
+ * Model IDs come from env so we can swap them without a deploy; these are the
+ * defaults per provider.
+ *
+ * The FastRouter picks are not uniform, because the roles are not.
+ *
+ * `design` gets Argon, the same model the Google path used and the one every
+ * prompt and gold exemplar in prompts.ts was written against. It is six times
+ * the price of the cheap tier and it only runs when a world is being built:
+ * measured on the real prompts that is about 37k in and 8k out, so roughly
+ * sixteen cents a world — sixty-odd worlds for ten dollars, which is not the
+ * thing to economise on.
+ *
+ * `text` and `fast` run per turn once a world is open, so volume matters there
+ * and they stay cheap. The Oracle deliberately gets the *weaker* text model:
+ * the RAG lessons need something that visibly gets distracted at k=8, and a
+ * model too good to be confused teaches nothing.
+ *
+ * Note FastRouter's own catalogue reports `structured_outputs: false` for every
+ * Google model, and it is wrong — Argon honours `response_format: json_schema`
+ * through the router. `npm run models -- --probe` checks by making the call
+ * rather than by reading the catalogue.
+ */
+const DEFAULTS: Record<Provider, Record<'design' | 'text' | 'fast' | 'image' | 'embed', string>> = {
+  google: {
+    design: 'gemini-4-argon',
+    text: 'gemini-3.8-flash',
+    fast: 'gemini-3.5-flash-lite',
+    image: 'gemini-nano-banana-2.1',
+    embed: 'gemini-embedding-2',
+  },
+  fastrouter: {
+    design: 'google/gemini-4-argon',
+    text: 'google/gemini-3.8-flash',
+    fast: 'google/gemini-3.5-flash-lite',
+    image: 'google/gemini-nano-banana-2.1',
+    embed: 'google/gemini-embedding-001',
+  },
+};
+
 export const MODELS = {
-  design: process.env.DESIGN_MODEL ?? 'gemini-4-argon',
-  text: process.env.TEXT_MODEL ?? 'gemini-3.8-flash',
-  fast: process.env.FAST_MODEL ?? 'gemini-3.5-flash-lite',
-  image: process.env.IMAGE_MODEL ?? 'gemini-nano-banana-2.1',
-  embed: process.env.EMBED_MODEL ?? 'gemini-embedding-2',
+  design: process.env.DESIGN_MODEL ?? DEFAULTS[PROVIDER].design,
+  text: process.env.TEXT_MODEL ?? DEFAULTS[PROVIDER].text,
+  fast: process.env.FAST_MODEL ?? DEFAULTS[PROVIDER].fast,
+  image: process.env.IMAGE_MODEL ?? DEFAULTS[PROVIDER].image,
+  embed: process.env.EMBED_MODEL ?? DEFAULTS[PROVIDER].embed,
 };
 
 /**
@@ -199,8 +258,20 @@ async function withRetry<T>(label: string, model: string, fn: () => Promise<T>):
   }
 }
 
-function countTokens(model: string, res: { usageMetadata?: { totalTokenCount?: number } }): void {
-  const tokens = res.usageMetadata?.totalTokenCount ?? 0;
+/** What a call cost, however it was made. */
+export interface Completion {
+  text: string;
+  tokens: number;
+}
+
+/** A schema name an OpenAI-compatible endpoint will accept. */
+const slug = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '') || 'result';
+
+function spendTokens(model: string, tokens: number): void {
   usage.tokens += tokens;
   forModel(model).tokens += tokens;
 }
@@ -263,8 +334,20 @@ export async function generateJson<T>(
     { text: prompt },
   ];
 
-  const call = (modelId: string) =>
-    gemini().models.generateContent({
+  // One shape out of both providers: the text that came back and what it cost.
+  const call = async (modelId: string): Promise<Completion> => {
+    if (PROVIDER === 'fastrouter') {
+      return fastrouter.json({
+        model: modelId,
+        prompt,
+        schema,
+        schemaName: opts.agent ? slug(opts.agent) : 'result',
+        ...(opts.systemInstruction ? { system: opts.systemInstruction } : {}),
+        temperature: opts.temperature ?? 0.7,
+        ...(opts.files?.length ? { files: opts.files } : {}),
+      });
+    }
+    const res = await gemini().models.generateContent({
       model: modelId,
       contents: [{ role: 'user', parts }],
       config: {
@@ -274,6 +357,8 @@ export async function generateJson<T>(
         ...(opts.systemInstruction ? { systemInstruction: opts.systemInstruction } : {}),
       },
     });
+    return { text: res.text ?? '', tokens: res.usageMetadata?.totalTokenCount ?? 0 };
+  };
 
   if (role === 'design') {
     // Both attempts go through withRetry. Without it the design role was the
@@ -286,8 +371,8 @@ export async function generateJson<T>(
 
     try {
       const res = await attempt(model);
-      countTokens(model, res);
-      return parseJson<T>(res.text ?? '');
+      spendTokens(model, res.tokens);
+      return parseJson<T>(res.text);
     } catch (err) {
       // Trimmed: the SDK's error message is a full JSON blob and this lands in the trace panel.
       const raw = err instanceof Error ? err.message : String(err);
@@ -301,14 +386,14 @@ export async function generateJson<T>(
         model: MODELS.text,
       });
       const res = await attempt(MODELS.text);
-      countTokens(MODELS.text, res);
-      return parseJson<T>(res.text ?? '');
+      spendTokens(MODELS.text, res.tokens);
+      return parseJson<T>(res.text);
     }
   }
 
   const res = await withRetry('generateJson', model, () => call(model));
-  countTokens(model, res);
-  return parseJson<T>(res.text ?? '');
+  spendTokens(model, res.tokens);
+  return parseJson<T>(res.text);
 }
 
 export interface GeneratedImage {
@@ -326,35 +411,39 @@ export async function generateImage(
   prompt: string,
   refs: ImageRef[] = [],
 ): Promise<GeneratedImage> {
-  const parts: Part[] = [
-    ...refs.map((r) => ({ inlineData: { mimeType: r.mimeType, data: r.data } })),
-    { text: prompt },
-  ];
-  const res = await withRetry('generateImage', MODELS.image, () =>
-    gemini().models.generateContent({
+  const painted = await withRetry('generateImage', MODELS.image, async () => {
+    if (PROVIDER === 'fastrouter') {
+      return fastrouter.image(MODELS.image, prompt, refs);
+    }
+    const parts: Part[] = [
+      ...refs.map((r) => ({ inlineData: { mimeType: r.mimeType, data: r.data } })),
+      { text: prompt },
+    ];
+    const res = await gemini().models.generateContent({
       model: MODELS.image,
       contents: [{ role: 'user', parts }],
       config: { responseModalities: ['IMAGE'] },
-    }),
-  );
-  countTokens(MODELS.image, res);
-
-  const candidateParts = res.candidates?.[0]?.content?.parts ?? [];
-  for (const part of candidateParts) {
-    const inline = (part as { inlineData?: { mimeType?: string; data?: string } }).inlineData;
-    if (inline?.data) {
-      usage.images += 1;
-      forModel(MODELS.image).images += 1;
-      return {
-        mimeType: inline.mimeType ?? 'image/png',
-        data: inline.data,
-        bytes: Buffer.from(inline.data, 'base64'),
-      };
+    });
+    const tokens = res.usageMetadata?.totalTokenCount ?? 0;
+    for (const part of res.candidates?.[0]?.content?.parts ?? []) {
+      const inline = (part as { inlineData?: { mimeType?: string; data?: string } }).inlineData;
+      if (inline?.data) {
+        return { mimeType: inline.mimeType ?? 'image/png', data: inline.data, tokens };
+      }
     }
-  }
-  throw new Error(
-    'generateImage: no image part in response (check IMAGE_MODEL supports image output)',
-  );
+    throw new Error(
+      'generateImage: no image part in response (check IMAGE_MODEL supports image output)',
+    );
+  });
+
+  spendTokens(MODELS.image, painted.tokens);
+  usage.images += 1;
+  forModel(MODELS.image).images += 1;
+  return {
+    mimeType: painted.mimeType,
+    data: painted.data,
+    bytes: Buffer.from(painted.data, 'base64'),
+  };
 }
 
 export interface EmbedOptions {
@@ -367,17 +456,24 @@ export interface EmbedOptions {
 export async function embed(texts: string[], opts: EmbedOptions = {}): Promise<number[][]> {
   const { taskPrefix = '', dims = 768, taskType } = opts;
   const contents = texts.map((t) => `${taskPrefix}${t}`);
-  const res = await withRetry('embed', MODELS.embed, () =>
-    gemini().models.embedContent({
+
+  const vectors = await withRetry('embed', MODELS.embed, async () => {
+    if (PROVIDER === 'fastrouter') {
+      const res = await fastrouter.embed(MODELS.embed, contents, dims);
+      spendTokens(MODELS.embed, res.tokens);
+      return res.vectors;
+    }
+    const res = await gemini().models.embedContent({
       model: MODELS.embed,
       contents,
       config: {
         outputDimensionality: dims,
         ...(taskType ? { taskType } : {}),
       },
-    }),
-  );
-  const vectors = (res.embeddings ?? []).map((e) => e.values ?? []);
+    });
+    return (res.embeddings ?? []).map((e) => e.values ?? []);
+  });
+
   if (vectors.length !== texts.length) {
     throw new Error(`embed: asked for ${texts.length} vectors, got ${vectors.length}`);
   }

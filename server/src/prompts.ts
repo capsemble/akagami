@@ -33,7 +33,7 @@ const WRITERS_ROOM_RULES = `RULES — these are what separate a game from a quiz
    before the action, never the action itself.
 2. Every act must make the player USE the concept through an in-world action.
    The available verbs are: drive, aim_launch, plant_marker, interrogate,
-   deduction, intercept, tune. Pick the verb that IS the concept.
+   deduction, intercept, tune, arrange. Pick the verb that IS the concept.
 3. One concept per act. If an act teaches two things, split it or cut one.
 4. Story first. There is a villain and a twist, and the acts are how the player
    closes in on them. The physics is how the trap is sprung, not a lecture
@@ -244,6 +244,80 @@ Act 3:
   "mechanic": { "type": "ai-system", "aiSystem": { "ragAct": "grounding", "question": "What dose did the Archivist record, and who approved it?", "goldFact": "forty milligrams, taken at dusk on the third night; no scroll records who approved it" } }
 }`;
 
+const GOLD_SEQUENCE = `GOLD EXEMPLAR 3 — a sequence act ("The Monsoon Intake", water treatment)
+
+The concept: each treatment stage only works on what the stage before it
+produced. The misconception: "filter first, it catches everything".
+
+{
+  "id": "act2",
+  "conceptId": "treatment-train",
+  "title": "The Cloudy Tap",
+  "goal": "Re-order the plant's stage boards so the monsoon water reaching the town is clear and safe, before the engineer signs the wrong order into the log.",
+  "verbs": ["arrange", "deduction"],
+  "prediction": { "question": "The engineer wants the sand filter at the very start, where the water is muddiest. What happens?", "options": ["It works best there — it catches everything", "It clogs within hours, because the fine silt has not been clumped into flocs it can catch", "Nothing changes — order does not matter in a plant"], "correctIndex": 1 },
+  "explainAfter": "Treatment is a chain: coagulant makes fine particles stick, gentle mixing grows them into flocs, flocs heavy enough to sink settle out, the filter catches what is left, and chlorine goes last because anything still cloudy shields microbes from it.",
+  "analogy": { "text": "The plant is a kitchen line: you cannot plate what has not been cooked.", "breaksWhere": "A cook can taste and fix a dish at the end; a plant cannot unmix a disinfectant that was added before the dirt came out." },
+  "dialogue": [
+    { "speaker": "Engineer Pathak", "line": "Put the filter first. Muddiest water, strongest stage." },
+    { "speaker": "Meera", "line": "Then why has every filter in this plant choked by noon?" }
+  ],
+  "scene": { "name": "Intake Control Room", "description": "Rain-streaked windows over settling tanks, a wall board of brass stage plates.", "objects": [ { "id": "stage-board", "label": "Stage board", "look": "Iron board with hooks for brass stage plates." }, { "id": "turbidity-log", "label": "Turbidity log", "look": "Water-stained ledger of hourly readings." } ], "exitSide": "east" },
+  "mechanic": {
+    "type": "sequence",
+    "sequence": {
+      "prompt": "Hang the stage plates in the order the water passes through them.",
+      "items": [
+        { "id": "coagulation", "label": "Dose the coagulant", "detail": "Alum neutralises the charge that keeps silt apart." },
+        { "id": "flocculation", "label": "Slow-stir the flocs", "detail": "Gentle paddles bring sticky particles together." },
+        { "id": "sedimentation", "label": "Let the flocs settle", "detail": "Heavy clumps sink in the quiet tank." },
+        { "id": "filtration", "label": "Run the sand filter", "detail": "Sand traps the fine flocs that did not sink." },
+        { "id": "disinfection", "label": "Add chlorine", "detail": "Kills microbes in water clear enough to reach them." }
+      ],
+      "rules": [
+        { "before": "coagulation", "after": "flocculation", "why": "Stirring only grows flocs once the coagulant has made the particles sticky.", "evidence": ["Once alum has neutralised their charge, the particles can stick together, and slow paddles then gather them into flocs."] },
+        { "before": "flocculation", "after": "sedimentation", "why": "Single fine particles never sink; only grown flocs are heavy enough to settle.", "evidence": ["Fine particles on their own stay suspended; only flocs are heavy enough to settle in the quiet tank."] },
+        { "before": "sedimentation", "after": "filtration", "why": "Settling removes the bulk of the floc first, or the sand clogs within hours.", "evidence": ["The sand filter catches the fine flocs left after settling; fed unsettled water, it clogs within hours."] },
+        { "before": "filtration", "after": "disinfection", "why": "Particles left in the water shield microbes from chlorine, so it goes in last.", "evidence": ["Chlorine is added last, because particles still in the water shield microbes from it."] }
+      ],
+      "solution": ["coagulation", "flocculation", "sedimentation", "filtration", "disinfection"]
+    }
+  }
+}
+
+(Each "evidence" string above is copied word for word from that chapter's notes.)`;
+
+const GOLD_EVIDENCE = `GOLD EXEMPLAR 4 — an evidence act ("The Matching Shores", continental drift)
+
+The concept: the continents were once joined, and the case rests on separate
+lines of evidence. The misconception: "it is only because the coastlines look
+like jigsaw pieces". Every excerpt is copied word for word from the chapter's
+notes; the decoy is a real passage that backs none of the claims.
+
+"mechanic": {
+  "type": "evidence",
+  "evidence": {
+    "prompt": "Pin each survey document to the claim it proves. One document proves nothing here.",
+    "claims": [
+      { "id": "joined-land", "text": "South America and Africa were once joined by land." },
+      { "id": "shared-climate", "text": "Lands now far apart once shared the same cold climate." }
+    ],
+    "documents": [
+      { "id": "mesosaurus", "title": "Fossil survey, Brazil and South Africa", "excerpt": "Fossils of Mesosaurus, a small freshwater reptile, are found only in Brazil and in southern Africa.", "shows": "The same freshwater reptile lived on both sides of an ocean it could not cross." },
+      { "id": "striations", "title": "Glacier scratch map", "excerpt": "Glacial scratches in rocks of India, Africa and Australia point back to a single ice sheet.", "shows": "One ice sheet once covered lands that are now tropical and far apart." },
+      { "id": "ridge-age", "title": "Sea-floor sample log", "excerpt": "Rocks on the ocean floor are youngest at the mid-ocean ridge and older further away.", "shows": "The sea floor is newest at the ridge and ages outward from it." }
+    ],
+    "links": [
+      { "claim": "joined-land", "document": "mesosaurus", "why": "A freshwater reptile could not swim an ocean, so the land it lived on must have been one." },
+      { "claim": "shared-climate", "document": "striations", "why": "Scratches from a single ice sheet put these lands under the same cold climate." }
+    ]
+  }
+}
+
+Why "ridge-age" is a decoy: it is true and from the chapter, but it is about
+how the sea floor spreads, not about either claim. A decoy must back NO claim —
+if it backs one, link it.`;
+
 const BAD_EXAMPLE = `BAD EXAMPLE — do not produce anything like this:
 
 {
@@ -283,10 +357,26 @@ Rules:
 - "page" is the page the quote appears on.
 - "keyRule" is the one sentence a player must end up believing.
 - "misconceptions" are what learners actually get wrong, in their own words.
-- "kind" classifies how the concept can be played:
-  formula = there is a quantity to compute or tune,
-  ai-system = it is a behaviour of a retrieval or model pipeline,
-  qualitative = it is an argument or distinction with no dial to turn.`,
+- "kind" classifies how the concept can be played. Pick by what the player
+  would have to get right, not by the subject:
+  formula = numbers related by an equation: there is a quantity to compute or
+    tune (a speed, a force, a threshold, a rate, a filter width).
+  sequence = ORDER is the idea: the stages of a process, the steps of a
+    procedure or algorithm, a life cycle, or a chain of causes and effects in
+    which getting the order wrong is the misconception (the phases of mitosis,
+    the events that led to a war, the steps of the Calvin cycle).
+  ai-system = ONLY the behaviour of a retrieval-augmented generation pipeline:
+    chunking, embeddings, top-k retrieval, reranking, grounding, prompt
+    injection. Image processing, convolutions, neural-network layers, training
+    and statistics are NOT ai-system — they are formula, sequence or
+    qualitative like anything else.
+  evidence = a claim or interpretation that rests on specific facts the
+    chapter gives: which source proves which conclusion, what shows that a
+    cause mattered, how we know something (why Britain entered the war, what
+    shows continents were joined, which observation supports a theory).
+  qualitative = a definition or distinction with no quantity to tune, no
+    order to arrange and no evidence to weigh.
+  Prefer formula, sequence or evidence whenever the chapter honestly supports it.`,
     prompt: `<chapter>\n${chapterText}\n</chapter>\n\nExtract the curriculum.`,
   };
 }
@@ -348,8 +438,9 @@ ${GOLD_ORACLE}
 
 ${BAD_EXAMPLE}
 
-Return ONE outline. Produce at most 3 acts, one per concept, choosing the 3
-concepts that make the best game. Draft ${draft}: commit to this register and to
+Every concept in this curriculum has a mechanic the game can play; do not
+invent concepts that are not in it. Return ONE outline. Produce at most 3
+acts, one per concept, choosing the 3 concepts that make the best game. Draft ${draft}: commit to this register and to
 one villain — do not hedge between two ideas.`,
     prompt: `Curriculum:\n${JSON.stringify(curriculum, null, 2)}\n\nWrite outline draft ${draft} as ${register.name}.`,
   };
@@ -377,12 +468,28 @@ good the prose is.`,
   };
 }
 
-export function actPrompt(outline: Outline, concept: Concept, act: OutlineAct): PromptPair {
+/**
+ * `chapterText` is what every citation is copied from. Without it the writer
+ * can only quote from memory, and memory paraphrases — "added to the
+ * beginning" for "added to the front end" — which the validator rightly
+ * rejects as not a quotation.
+ */
+export function actPrompt(
+  outline: Outline,
+  concept: Concept,
+  act: OutlineAct,
+  chapterText = '',
+): PromptPair {
   return {
     system: `You are the act writer for Chapter Quest. You expand one act of an agreed
 outline into a playable spec. The outline is fixed — do not rename the world,
 the villain or the cast, and keep the register the outline is written in: the
 same weather, the same kind of place, the same voices.
+
+${DATA_RULE}
+
+Every "evidence" and "excerpt" string must be copied character for character
+from the text between <chapter> and </chapter> — select it, do not retype it.
 
 ${WRITERS_ROOM_RULES}
 
@@ -395,6 +502,49 @@ Mechanic rules:
   must begin unsolved. The "solution" value MUST win. Keep the winning band
   narrow enough that turning the dial at random usually fails: if more than half
   the range wins, the act is guessable and will be rejected.
+  Give every param a "when". "during" is a control the player keeps a hand on
+  while the run plays and can correct as it goes — a pull, a tension, a brake,
+  a throttle, workers on shift. "before" is the situation they are handed — a
+  mass, a length, a claimed figure — set once and lived with. Prefer at least
+  one "during" param whenever something moves over time: driving it is the game.
+- sequence: the player arranges cards on a board in the room. "items" are 4
+  to 8 steps, stages or events taken from the chapter, each label under 8
+  words, and no label or detail may give away its position ("first", "then",
+  "finally", step numbers). "rules" are the ordering facts the chapter
+  actually states or directly implies: "before" must come before "after",
+  and "why" says what the earlier one produces, causes or makes possible that
+  the later one needs — it is what a player who broke the rule reads, so it
+  teaches the dependency instead of restating the order. Do not invent
+  ordering the chapter does not support: two events with no causal or
+  temporal link get no rule between them. Every card must be in at least one
+  rule, and there must be enough rules that a random order almost always
+  breaks one. "solution" lists every card id once in an order that breaks no
+  rule. Use the verb "arrange".
+  Cards are steps the chapter itself presents as separate steps. Never split
+  one sentence into sub-steps ("removes the introns and joins the exons" is
+  one card, not two), because the chapter gives no order between the halves.
+  For each rule, cite the passage that STATES the order — a summary sentence
+  that lists the steps, a date, "then", "after", "needs the product of" — and
+  that names both steps. A passage about only one of the two cards does not
+  establish an order and will be rejected.
+  Every rule carries "evidence": one to three passages copied WORD FOR WORD
+  from the chapter that establish this order (a date, "then", "led to", or
+  one step needing the other's product). Each is checked character for
+  character and then read by a judge that rejects any rule its passages do
+  not establish. A rule you cannot quote evidence for must not exist — leave
+  those two cards unordered instead. Card labels and details state only what
+  the chapter says: leave a detail out rather than add a fact, date or place
+  the notes do not give.
+- evidence: the player pins documents to claims on a board. "claims" are 2 to
+  5 conclusions the chapter itself draws. "documents" are 3 to 7 passages,
+  each "excerpt" copied WORD FOR WORD from the chapter and at least 5 words
+  long, with at least one decoy that backs no claim. "shows" says in one
+  sentence what the passage establishes, without naming the claim it backs —
+  it is what a player who pinned it in the wrong place reads. "links" lists
+  every claim/document pair where the passage backs the claim, with "why".
+  A judge reads every claim against every document: a decoy that backs any
+  claim, or a link the excerpt does not establish, rejects the act. Use the
+  verbs "deduction" and "interrogate".
 - ai-system: pick the ragAct the concept is really about, and write the goldFact
   as the exact fact a correct answer must contain.
 - qualitative: rubric.mustShow is what the player must say or do; keep it
@@ -411,8 +561,12 @@ ${GOLD_GHAT_9}
 
 ${GOLD_ORACLE}
 
+${GOLD_SEQUENCE}
+
+${GOLD_EVIDENCE}
+
 ${BAD_EXAMPLE}`,
-    prompt: `OUTLINE (fixed context):\n${JSON.stringify(outline, null, 2)}\n\nCONCEPT:\n${JSON.stringify(concept, null, 2)}\n\nACT TO WRITE:\n${JSON.stringify(act, null, 2)}\n\nWrite the full act spec.`,
+    prompt: `${chapterText ? `<chapter>\n${chapterText}\n</chapter>\n\n` : ''}OUTLINE (fixed context):\n${JSON.stringify(outline, null, 2)}\n\nCONCEPT:\n${JSON.stringify(concept, null, 2)}\n\nACT TO WRITE:\n${JSON.stringify(act, null, 2)}\n\nWrite the full act spec.`,
   };
 }
 
@@ -422,8 +576,9 @@ export function repairPrompt(
   act: OutlineAct,
   previous: unknown,
   errors: ValidationError[],
+  chapterText = '',
 ): PromptPair {
-  const base = actPrompt(outline, concept, act);
+  const base = actPrompt(outline, concept, act, chapterText);
   return {
     system: base.system,
     prompt: `${base.prompt}

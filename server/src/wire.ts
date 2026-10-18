@@ -3,7 +3,17 @@
  * emits name/value pairs and a tagged object with optional branches. This turns
  * that wire shape into the types in shared/types.ts.
  */
-import type { ActSpec, Mechanic, ParamSpec, RagAct, SimSpec } from '@chapter-quest/shared';
+import type {
+  ActSpec,
+  EvidenceClaim,
+  Mechanic,
+  ParamSpec,
+  RagAct,
+  SequenceItem,
+  SequenceRule,
+  SimSpec,
+} from '@chapter-quest/shared';
+import { startingOrder } from '@chapter-quest/shared';
 
 export interface NamedValue {
   name: string;
@@ -27,8 +37,16 @@ export interface WireSimSpec {
 }
 
 export interface WireMechanic {
-  type: 'formula' | 'ai-system' | 'qualitative';
+  type: 'formula' | 'sequence' | 'evidence' | 'ai-system' | 'qualitative';
   formula?: { spec: WireSimSpec; params: ParamSpec[] };
+  /** No `initial`: where the cards start is decided by `startingOrder`, not the model. */
+  sequence?: { prompt: string; items: SequenceItem[]; rules: SequenceRule[]; solution: string[] };
+  evidence?: {
+    prompt: string;
+    claims: EvidenceClaim[];
+    documents: { id: string; title: string; excerpt: string; shows: string }[];
+    links: { claim: string; document: string; why: string }[];
+  };
   aiSystem?: { ragAct: RagAct; question: string; goldFact: string };
   qualitative?: { mustShow: string[]; misconceptions: string[] };
 }
@@ -54,7 +72,8 @@ export function toSimSpec(wire: WireSimSpec): SimSpec {
   };
 }
 
-export function toMechanic(wire: WireMechanic): Mechanic {
+/** `seed` keeps a sequence act's starting order stable across rebuilds: the act id. */
+export function toMechanic(wire: WireMechanic, seed = ''): Mechanic {
   if (wire.type === 'formula') {
     if (!wire.formula)
       throw new Error('mechanic.type is "formula" but the formula branch is missing');
@@ -62,6 +81,41 @@ export function toMechanic(wire: WireMechanic): Mechanic {
       type: 'formula',
       spec: toSimSpec(wire.formula.spec),
       params: wire.formula.params,
+    };
+  }
+  if (wire.type === 'sequence') {
+    if (!wire.sequence)
+      throw new Error('mechanic.type is "sequence" but the sequence branch is missing');
+    const { prompt, items, rules, solution } = wire.sequence;
+    return {
+      type: 'sequence',
+      prompt,
+      items: items.map(({ id, label, detail }) => ({
+        id,
+        label,
+        ...(detail?.trim() ? { detail } : {}),
+      })),
+      // Only the fields a rule has: a model cannot smuggle in its own verdict.
+      rules: rules.map(({ before, after, why, evidence }) => ({
+        before,
+        after,
+        why,
+        evidence: evidence ?? [],
+      })),
+      initial: startingOrder({ rules, solution }, seed),
+      solution,
+    };
+  }
+  if (wire.type === 'evidence') {
+    if (!wire.evidence)
+      throw new Error('mechanic.type is "evidence" but the evidence branch is missing');
+    const { prompt, claims, documents, links } = wire.evidence;
+    return {
+      type: 'evidence',
+      prompt,
+      claims: claims.map(({ id, text }) => ({ id, text })),
+      evidence: documents.map(({ id, title, excerpt, shows }) => ({ id, title, excerpt, shows })),
+      links: links.map(({ claim, document, why }) => ({ claim, evidence: document, why })),
     };
   }
   if (wire.type === 'ai-system') {
@@ -80,5 +134,5 @@ export function toMechanic(wire: WireMechanic): Mechanic {
 }
 
 export function toActSpec(wire: WireAct): ActSpec {
-  return { ...wire, mechanic: toMechanic(wire.mechanic) };
+  return { ...wire, mechanic: toMechanic(wire.mechanic, wire.id) };
 }

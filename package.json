@@ -15,18 +15,22 @@
   "scripts": {
     "postinstall": "npm run build:shared",
     "build:shared": "npm -w @chapter-quest/shared run build",
-    "dev": "npm run build:shared && concurrently -n shared,server,web -c magenta,cyan,green \"npm -w @chapter-quest/shared run dev\" \"npm -w @chapter-quest/server run dev\" \"npm -w @chapter-quest/web run dev\"",
+    "dev": "npm run build:shared && concurrently -n shared,server,web -c magenta,cyan,green \"npm -w @chapter-quest/shared run dev\" \"npm -w @chapter-quest/server run dev\" \"VITE_API=live npm -w @chapter-quest/web run dev\"",
+    "dev:mock": "npm run build:shared && concurrently -n shared,web -c magenta,green \"npm -w @chapter-quest/shared run dev\" \"npm -w @chapter-quest/web run dev\"",
     "dev:poll": "CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=400 npm run dev",
     "build": "npm run build:shared && npm -w @chapter-quest/server run build && npm -w @chapter-quest/web run build",
     "typecheck": "npm run build:shared && npm -w @chapter-quest/shared run typecheck && npm -w @chapter-quest/server run typecheck && npm -w @chapter-quest/web run typecheck",
     "smoke": "npm -w @chapter-quest/server run smoke",
-    "models": "npm -w @chapter-quest/server run models",
+    "models": "npm -w @chapter-quest/server run models --",
     "paint": "npm -w @chapter-quest/server run paint",
+    "room": "npm -w @chapter-quest/server run room --",
+    "dress": "npm -w @chapter-quest/server run dress --",
     "design": "npm -w @chapter-quest/server run design --",
     "test": "npm -w @chapter-quest/server run test",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "audit": "npm -w @chapter-quest/server run audit"
   },
   "devDependencies": {
     "@eslint/js": "^9.12.0",

@@ -14,7 +14,16 @@ import type {
   SimSpec,
   Verb,
 } from '@chapter-quest/shared';
+import {
+  GENERATED_MECHANICS,
+  evidenceGroundingProblems,
+  evidenceProblems,
+  normaliseSource,
+  sequenceGroundingProblems,
+  sequenceProblems,
+} from '@chapter-quest/shared';
 import type { Evaluator } from './evaluator.js';
+import { aboutRetrieval } from './routing.js';
 
 export interface ValidationError {
   /** Where it went wrong, e.g. "acts[1].mechanic.params[0].default". */
@@ -36,6 +45,7 @@ const VERBS: readonly Verb[] = [
   'deduction',
   'intercept',
   'tune',
+  'arrange',
 ];
 
 const MAX_DIALOGUE_LINES = 6;
@@ -224,13 +234,9 @@ function mechanicMatchesKind(act: ActSpec, concept: Concept): boolean {
 
 /** Collapse whitespace, unify quote characters and dashes, lowercase. */
 export function normaliseForQuoteSearch(text: string): string {
-  return text
-    .replace(/[‘’‛′]/g, "'")
-    .replace(/[“”‟″]/g, '"')
-    .replace(/[‐-―−]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  // One normaliser for every citation the game checks, concept quotes and
+  // act evidence alike: see shared/grounding.ts for what it forgives.
+  return normaliseSource(text);
 }
 
 export function validateGrounding(curriculum: Curriculum, chapterText: string): ValidationResult {
@@ -434,6 +440,101 @@ export function validateAiSystemMechanics(acts: ActSpec[]): ValidationResult {
 }
 
 // ---------------------------------------------------------------------------
+// Sequence mechanics — the start loses, the solution wins, a guess usually loses
+// ---------------------------------------------------------------------------
+
+export function validateSequenceMechanics(acts: ActSpec[]): ValidationResult {
+  const errors: ValidationError[] = [];
+  for (const [i, act] of acts.entries()) {
+    if (act.mechanic.type !== 'sequence') continue;
+    for (const problem of sequenceProblems(act.mechanic)) {
+      errors.push(err(`acts[${i}].mechanic.${problem.at}`, problem.code, problem.message));
+    }
+  }
+  return result(errors);
+}
+
+export function validateEvidenceMechanics(acts: ActSpec[]): ValidationResult {
+  const errors: ValidationError[] = [];
+  for (const [i, act] of acts.entries()) {
+    if (act.mechanic.type !== 'evidence') continue;
+    for (const problem of evidenceProblems(act.mechanic)) {
+      errors.push(err(`acts[${i}].mechanic.${problem.at}`, problem.code, problem.message));
+    }
+  }
+  return result(errors);
+}
+
+// ---------------------------------------------------------------------------
+// Citations — deterministic half of grounding
+// ---------------------------------------------------------------------------
+
+/**
+ * Every sequence rule and every evidence document must quote the notes, and
+ * the quote must really be there. This is the deterministic half of grounding
+ * and it only proves the passages exist and are about the right things; what
+ * they *mean* is checked by the evidence judge (pipeline/judge.ts), which is
+ * a model and runs separately.
+ */
+export function validateCitations(acts: ActSpec[], chapterText: string): ValidationResult {
+  const errors: ValidationError[] = [];
+  for (const [i, act] of acts.entries()) {
+    const problems =
+      act.mechanic.type === 'sequence'
+        ? sequenceGroundingProblems(act.mechanic, chapterText)
+        : act.mechanic.type === 'evidence'
+          ? evidenceGroundingProblems(act.mechanic, chapterText)
+          : [];
+    for (const problem of problems) {
+      errors.push(err(`acts[${i}].mechanic.${problem.at}`, problem.code, problem.message));
+    }
+  }
+  return result(errors);
+}
+
+// ---------------------------------------------------------------------------
+// Runtime support — a generated act must be one the game can finish
+// ---------------------------------------------------------------------------
+
+/**
+ * The backstop behind routing.ts. A generated act whose mechanic the runtime
+ * cannot judge is rejected here, so it can never reach a player as a room with
+ * a gate that will not open. Retrieval acts are named separately when the
+ * concept is not about retrieval at all: that is the misrouting that sent a
+ * computer-vision chapter to the Oracle's canned RAG panel.
+ */
+export function validateRuntimeSupport(curriculum: Curriculum, acts: ActSpec[]): ValidationResult {
+  const errors: ValidationError[] = [];
+  const conceptById = new Map(curriculum.concepts.map((c) => [c.id, c]));
+  for (const [i, act] of acts.entries()) {
+    const type = act.mechanic.type;
+    if (GENERATED_MECHANICS.includes(type)) continue;
+    // The prepared Oracle world, answered from the canned table. The wire
+    // schema has no `corpus`, so a model can never claim this for itself.
+    if (act.mechanic.type === 'ai-system' && act.mechanic.corpus) continue;
+    const concept = conceptById.get(act.conceptId);
+    if (type === 'ai-system' && concept && !aboutRetrieval(concept)) {
+      errors.push(
+        err(
+          `acts[${i}].mechanic.type`,
+          'misrouted-rag',
+          `concept "${concept.id}" is not about retrieval, so a RAG act would teach the wrong thing`,
+        ),
+      );
+      continue;
+    }
+    errors.push(
+      err(
+        `acts[${i}].mechanic.type`,
+        'unsupported-mechanic',
+        `"${type}" acts cannot be finished in a generated world; use ${GENERATED_MECHANICS.join(' or ')}`,
+      ),
+    );
+  }
+  return result(errors);
+}
+
+// ---------------------------------------------------------------------------
 // Content — claims we refuse to teach, and analogies with no edge
 // ---------------------------------------------------------------------------
 
@@ -534,6 +635,10 @@ export function validateScript({
     ...validateGrounding(curriculum, chapterText).errors,
     ...validateFormulaMechanics(acts, evaluator).errors,
     ...validateAiSystemMechanics(acts).errors,
+    ...validateSequenceMechanics(acts).errors,
+    ...validateEvidenceMechanics(acts).errors,
+    ...validateCitations(acts, chapterText).errors,
+    ...validateRuntimeSupport(curriculum, acts).errors,
     ...validateContent(curriculum, acts).errors,
   ]);
 }

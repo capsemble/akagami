@@ -408,17 +408,74 @@ export function drawLocomotive(
     );
   }
 
-  // Steam, raked back over the cab. Rigid, but at this size a plume that
-  // leans the right way reads as speed and an animated one reads as a bug.
-  for (const [i, [a, u, r]] of ([
-    [40, 78, 7],
-    [26, 90, 10],
-    [6, 101, 13],
-    [-18, 110, 16],
-  ] as [number, number, number][]).entries()) {
-    const p = at(a, u);
-    g.fillStyle(0xd8d2c6, 0.3 - i * 0.055);
-    g.fillCircle(p.x, p.y, r * scale);
+}
+
+/** Where the chimney mouth is, relative to the engine's own origin. */
+export function chimneyOffset(along: Point, scale = 1): Point {
+  const a = 40 * scale;
+  const u = 74 * scale;
+  return { x: along.x * a, y: along.y * a - u };
+}
+
+/**
+ * Steam.
+ *
+ * Puffs are left behind in the world rather than carried along with the engine,
+ * which is the entire difference between smoke and a cloud welded to a chimney.
+ * They are spawned by distance covered, not by the clock, so a wagon crawling
+ * down the last few metres stops producing a stack-blast it has no business
+ * making — the same reason the walk cycle runs on distance.
+ */
+export class Steam {
+  private puffs: { x: number; y: number; r: number; age: number; life: number; drift: number }[] =
+    [];
+  private owed = 0;
+
+  constructor(private readonly g: Phaser.GameObjects.Graphics) {}
+
+  /**
+   * `at` is the chimney on screen, or null when nothing is running. `travelled`
+   * is screen pixels covered since the last call.
+   */
+  update(deltaMs: number, at: Point | null, travelled: number): void {
+    const dt = deltaMs / 1000;
+
+    if (at) {
+      // One puff every 14px of ground. Stationary engines do not chuff.
+      this.owed += travelled / 14;
+      while (this.owed >= 1 && this.puffs.length < 60) {
+        this.owed -= 1;
+        this.puffs.push({
+          x: at.x + (Math.random() - 0.5) * 5,
+          y: at.y,
+          r: 5 + Math.random() * 3,
+          age: 0,
+          life: 1.1 + Math.random() * 0.7,
+          drift: (Math.random() - 0.5) * 18,
+        });
+      }
+    }
+
+    this.g.clear();
+    for (const puff of this.puffs) {
+      puff.age += dt;
+      // Rises, spreads and slows, the way a hot gas does as it cools.
+      puff.y -= 26 * dt;
+      puff.x += puff.drift * dt;
+      puff.r += 17 * dt;
+    }
+    this.puffs = this.puffs.filter((p) => p.age < p.life);
+    for (const puff of this.puffs) {
+      const left = 1 - puff.age / puff.life;
+      this.g.fillStyle(0xd8d2c6, 0.34 * left * left);
+      this.g.fillCircle(puff.x, puff.y, puff.r);
+    }
+  }
+
+  clear(): void {
+    this.puffs = [];
+    this.owed = 0;
+    this.g.clear();
   }
 }
 

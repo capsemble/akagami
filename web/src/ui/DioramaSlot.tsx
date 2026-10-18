@@ -4,6 +4,12 @@ import { colors } from './tokens';
 interface Props {
   /** Cached three.js diorama for this world. Nothing is generated live. */
   dioramaUrl?: string;
+  /**
+   * The world's painted style plate, once there is a world. It arrives at the
+   * end of the build, so this is the screen quietly becoming the thing it has
+   * been describing rather than a picture shown while you wait for one.
+   */
+  imageUrl?: string;
 }
 
 function prefersReducedMotion(): boolean {
@@ -17,7 +23,7 @@ function prefersReducedMotion(): boolean {
  * artefact we host — it arrives 17 Oct. Until then, and whenever the viewer has
  * asked for less motion, this is just a gradient.
  */
-export function DioramaSlot({ dioramaUrl }: Props) {
+export function DioramaSlot({ dioramaUrl, imageUrl }: Props) {
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion);
 
   useEffect(() => {
@@ -41,6 +47,8 @@ export function DioramaSlot({ dioramaUrl }: Props) {
           loading="lazy"
           style={styles.frame}
         />
+      ) : imageUrl ? (
+        <img src={imageUrl} alt="" style={styles.plate} />
       ) : null}
     </div>
   );
@@ -55,4 +63,13 @@ const styles: Record<string, React.CSSProperties> = {
     background: `linear-gradient(160deg, ${colors.ground} 0%, #0d0906 55%, #000000 100%)`,
   },
   frame: { width: '100%', height: '100%', border: 'none', display: 'block' },
+  // Dimmed hard: the stage list has to stay readable over whatever was painted.
+  plate: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    display: 'block',
+    opacity: 0.35,
+    animation: 'cq-fade 900ms ease-out both',
+  },
 };

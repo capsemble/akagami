@@ -1,0 +1,26 @@
+[
+  {
+    "ts": 0,
+    "agent": "Orchestrator",
+    "kind": "start",
+    "message": "Prepared demo: The Impossible Machine. A hand-authored lever challenge — no chapter was read and no model wrote it."
+  },
+  {
+    "ts": 700,
+    "agent": "Mapper",
+    "kind": "done",
+    "message": "Stage: balance (lever) — fulcrum, counterweight, delivery platform, read from the act's structured config."
+  },
+  {
+    "ts": 1400,
+    "agent": "Validator",
+    "kind": "done",
+    "message": "Simulator check: default settings lose (crate rises to 0.64 m of 0.80 m); stored solution wins (0.85 m); torques are m·g·d."
+  },
+  {
+    "ts": 2000,
+    "agent": "Orchestrator",
+    "kind": "done",
+    "message": "Ready. Two acts in the mill-yard workshop."
+  }
+]

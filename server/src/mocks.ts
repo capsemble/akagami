@@ -17,6 +17,8 @@ const WORLDS: Record<string, string> = {
   kinematics: 'world.kinematics.json',
   'world-oracle-library': 'world.rag.json',
   rag: 'world.rag.json',
+  'world-impossible-machine': 'world.machine.json',
+  machine: 'world.machine.json',
 };
 
 /** What a fresh upload gets until the real pipeline builds one. */
@@ -34,6 +36,8 @@ const EVENTS: Record<string, string> = {
   kinematics: 'agent-events.kinematics.json',
   'world-oracle-library': 'agent-events.rag.json',
   rag: 'agent-events.rag.json',
+  'world-impossible-machine': 'agent-events.machine.json',
+  machine: 'agent-events.machine.json',
 };
 
 /** The build story has to be the story of the world being built. */

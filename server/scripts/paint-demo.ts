@@ -16,14 +16,16 @@
  * Safe to re-run. paintWorld skips anything already on disk, so a run that dies
  * halfway through a quota window picks up exactly where it stopped.
  */
+// First: ES imports are hoisted, so dotenv has to run from a module of its own
+// or art.js → gemini.ts reads the environment before .env has been opened and
+// paints with no key at all.
+import '../src/env.js';
 import { copyFile, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { config } from 'dotenv';
 import type { CastMember, Scene, World } from '@chapter-quest/shared';
 import { paintWorld } from '../src/pipeline/art.js';
 import { mocksDir, repoRoot } from '../src/paths.js';
 
-config({ path: join(repoRoot, '.env') });
 
 /** Stable, so re-runs reuse the same cache folder rather than paying again. */
 const HASH = 'demo-kinematics0';

@@ -109,8 +109,22 @@ function sceneSvg(scene, label) {
  * Isometric scenes get a floor only. The props are extruded from the collider
  * rects by WorldScene at runtime, so they cannot drift from the physics.
  */
+/**
+ * Ground by world, not one palette for everything. The library is candlelit oak
+ * and the ravine is four-o-clock dust, and painting both in the same brown made
+ * the one world look like the other with the furniture moved.
+ */
+const GROUND = {
+  'scene-signal-box': { base: '#2e2113', alt: '#372819', joint: '#4a3722', skirt: '#5a4430' },
+  'scene-falling-grade': { base: '#302314', alt: '#3a2b1a', joint: '#4d3a24', skirt: '#5d4832' },
+  'scene-gorge': { base: '#312415', alt: '#3b2c1b', joint: '#4e3b25', skirt: '#5e4933' },
+};
+const groundOf = (id) =>
+  GROUND[id] ?? { base: C.ground, alt: C.groundAlt, joint: '#3a2715', skirt: '#4a3426' };
+
 function isoSceneSvg(scene) {
   const view = isoView(scene.width, scene.height);
+  const ground = groundOf(scene.id);
   const w = Math.round(view.width);
   const h = Math.round(view.height);
   const parts = [];
@@ -130,7 +144,7 @@ function isoSceneSvg(scene) {
 
   // The ground plane as one big diamond.
   parts.push(
-    `<polygon points="${poly({ x: 0, y: 0, w: scene.width, h: scene.height })}" fill="${C.ground}"/>`,
+    `<polygon points="${poly({ x: 0, y: 0, w: scene.width, h: scene.height })}" fill="${ground.base}"/>`,
   );
 
   // Tiled in two shades, not flat: on an isometric plane one colour gives the
@@ -141,12 +155,12 @@ function isoSceneSvg(scene) {
       if (((x / tile + y / tile) | 0) % 2 === 0) continue;
       const w1 = Math.min(tile, scene.width - x);
       const h1 = Math.min(tile, scene.height - y);
-      parts.push(`<polygon points="${poly({ x, y, w: w1, h: h1 })}" fill="${C.groundAlt}"/>`);
+      parts.push(`<polygon points="${poly({ x, y, w: w1, h: h1 })}" fill="${ground.alt}"/>`);
     }
   }
 
   // Joints over the tiles, so the seams read at any zoom.
-  parts.push('<g stroke="#3a2715" stroke-width="1.5" opacity="0.5">');
+  parts.push(`<g stroke="${ground.joint}" stroke-width="1.5" opacity="0.5">`);
   for (let x = 0; x <= scene.width; x += tile) {
     parts.push(
       `<line x1="${pt(x, 0).split(',')[0]}" y1="${pt(x, 0).split(',')[1]}" x2="${pt(x, scene.height).split(',')[0]}" y2="${pt(x, scene.height).split(',')[1]}"/>`,
@@ -163,7 +177,7 @@ function isoSceneSvg(scene) {
   // the room has edges rather than fading out.
   const inset = 28;
   parts.push(
-    `<polygon points="${poly({ x: inset, y: inset, w: scene.width - inset * 2, h: scene.height - inset * 2 })}" fill="none" stroke="#4a3426" stroke-width="3" opacity="0.55"/>`,
+    `<polygon points="${poly({ x: inset, y: inset, w: scene.width - inset * 2, h: scene.height - inset * 2 })}" fill="none" stroke="${ground.skirt}" stroke-width="3" opacity="0.55"/>`,
   );
 
   // A way out, lit. A flat blue rectangle on the floor is the one thing in the

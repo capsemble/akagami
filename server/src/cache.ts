@@ -8,7 +8,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { repoRoot } from './paths.js';
 
-export type Stage = 'curriculum' | 'outline' | 'script';
+/**
+ * `source` is the chapter text itself, kept so every citation in a built world
+ * can be checked against what it cites long after the upload is gone.
+ */
+export type Stage = 'curriculum' | 'outline' | 'script' | 'source';
 
 const cacheDir = process.env.DESIGN_CACHE_DIR ?? join(repoRoot, 'server/.cache');
 
